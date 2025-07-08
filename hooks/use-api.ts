@@ -1,0 +1,98 @@
+import { useCallback } from "react"
+import { useAuth } from "@/lib/auth-context"
+import { jwtDecode } from "jwt-decode"
+
+export function useApi() {
+  const { user, logout, refreshAccessToken, login } = useAuth()
+
+  // Helper to check if token is expired
+  const isTokenExpired = (token: string) => {
+    try {
+      const decoded: any = jwtDecode(token)
+      const now = Date.now() / 1000
+      return decoded.exp && decoded.exp < now
+    } catch {
+      return true
+    }
+  }
+
+  // Main API call function
+  const apiFetch = useCallback(
+    async (url: string, options: RequestInit = {}) => {
+      let accessToken = localStorage.getItem("access_token")
+      if (!accessToken || isTokenExpired(accessToken)) {
+        const refreshed = await refreshAccessToken()
+        if (!refreshed) {
+          logout()
+          throw new Error("Session expired. Please log in again.")
+        }
+        accessToken = localStorage.getItem("access_token")
+      }
+      const headers = {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      }
+      const response = await fetch(url, { ...options, headers })
+      if (response.status === 401) {
+        logout()
+        throw new Error("Unauthorized. Please log in again.")
+      }
+      return response
+    },
+    [logout, refreshAccessToken]
+  )
+
+  // HTTP helpers
+  const post = useCallback(
+    (url: string, body: any) =>
+      apiFetch(url, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    [apiFetch]
+  )
+
+  const get = useCallback(
+    (url: string) => apiFetch(url, { method: "GET" }),
+    [apiFetch]
+  )
+  const put = useCallback(
+    (url: string, body: any) =>
+      apiFetch(url, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    [apiFetch]
+  )
+  const del = useCallback(
+    (url: string) => apiFetch(url, { method: "DELETE" }),
+    [apiFetch]
+  )
+
+  // Authentication helpers
+  const register = useCallback(
+    (data: { email: string; password: string; [key: string]: any }) =>
+      post("http://localhost:8000/api/v1/auth/register", data),
+    [post]
+  )
+
+  const loginApi = useCallback(
+    (email: string, password: string) =>
+      post("http://localhost:8000/api/v1/auth/login", { email, password }),
+    [post]
+  )
+
+  const refresh = useCallback(
+    (refresh_token: string) =>
+      post("http://localhost:8000/api/v1/auth/refresh", { refresh_token }),
+    [post]
+  )
+
+  const logoutApi = useCallback(
+    () => post("http://localhost:8000/api/v1/auth/logout", {}),
+    [post]
+  )
+
+  return { apiFetch, get, post, put, del, register, loginApi, refresh, logoutApi }
+} 

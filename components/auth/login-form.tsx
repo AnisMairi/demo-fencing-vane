@@ -26,8 +26,14 @@ export function LoginForm() {
     try {
       await login(email, password)
       router.push("/dashboard")
-    } catch (err) {
-      setError("Invalid credentials")
+    } catch (err: any) {
+      if (err.message === "wrong_credentials") {
+        setError("Email ou mot de passe incorrect.")
+      } else if (err.message === "account_suspended") {
+        setError("Votre compte a été suspendu. Veuillez contacter la fédération pour plus d’informations")
+      } else {
+        setError("Échec de la connexion. Veuillez réessayer.")
+      }
     }
   }
 

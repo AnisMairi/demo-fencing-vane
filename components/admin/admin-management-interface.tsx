@@ -1,6 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useUserApi } from "@/hooks/use-user-api"
+import { useToast } from "@/hooks/use-toast"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,16 +24,26 @@ import {
 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useVideoApi } from "@/hooks/use-video-api"
+import { Loading } from "@/components/common/loading"
+import { UserProfileModal } from "./UserProfileModal"
 
 interface User {
-  id: string
+  id: string | number
   name: string
   email: string
   role: "local_contact" | "coach" | "administrator"
   status: "active" | "suspended" | "pending"
-  joinDate: string
-  lastActive: string
-  videosUploaded: number
+  joinDate?: string
+  lastActive?: string
+  videosUploaded?: number
+  phone?: string
+  club_name?: string
+  bio?: string
+  avatar_url?: string | null
+  last_login?: string
+  created_at?: string
+  updated_at?: string
 }
 
 interface VideoItem {
@@ -59,65 +71,201 @@ interface CommentItem {
 export function AdminManagementInterface() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedTab, setSelectedTab] = useState("users")
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [profileLoading, setProfileLoading] = useState(false)
+  const [profileError, setProfileError] = useState<string | null>(null)
+  const [showProfileModal, setShowProfileModal] = useState(false)
+  const [profileTab, setProfileTab] = useState<'profil' | 'details' | 'activity'>('profil')
 
-  // Mock data
-  const users: User[] = [
-    {
-      id: "1",
-      name: "Marie Dubois",
-      email: "marie.dubois@email.com",
-      role: "local_contact",
-      status: "active",
-      joinDate: "2023-09-15",
-      lastActive: "il y a 2h",
-      videosUploaded: 12,
-    },
-    {
-      id: "2",
-      name: "Coach Martin",
-      email: "martin@club-escrime.fr",
-      role: "coach",
-      status: "active",
-      joinDate: "2023-01-10",
-      lastActive: "il y a 30min",
-      videosUploaded: 45,
-    },
-    {
-      id: "3",
-      name: "Jean Nouveau",
-      email: "jean.nouveau@email.com",
-      role: "local_contact",
-      status: "pending",
-      joinDate: "2024-01-02",
-      lastActive: "jamais",
-      videosUploaded: 0,
-    },
-  ]
+  // Remove mock users array
+  // const users: User[] = [
+  //   {
+  //     id: "1",
+  //     name: "Marie Dubois",
+  //     email: "marie.dubois@email.com",
+  //     role: "local_contact",
+  //     status: "active",
+  //     joinDate: "2023-09-15",
+  //     lastActive: "il y a 2h",
+  //     videosUploaded: 12,
+  //   },
+  //   {
+  //     id: "2",
+  //     name: "Coach Martin",
+  //     email: "martin@club-escrime.fr",
+  //     role: "coach",
+  //     status: "active",
+  //     joinDate: "2023-01-10",
+  //     lastActive: "il y a 30min",
+  //     videosUploaded: 45,
+  //   },
+  //   {
+  //     id: "3",
+  //     name: "Jean Nouveau",
+  //     email: "jean.nouveau@email.com",
+  //     role: "local_contact",
+  //     status: "pending",
+  //     joinDate: "2024-01-02",
+  //     lastActive: "jamais",
+  //     videosUploaded: 0,
+  //   },
+  // ]
 
-  const videos: VideoItem[] = [
-    {
-      id: "1",
-      title: "Championnat Régional Final - Épée",
-      athlete: "Marie Dubois",
-      uploader: "Marie Dubois",
-      uploadDate: "2024-01-01",
-      status: "published",
-      views: 156,
-      comments: 8,
-      reports: 0,
-    },
-    {
-      id: "2",
-      title: "Entraînement Technique Controversé",
-      athlete: "Jean Martin",
-      uploader: "Coach Bernard",
-      uploadDate: "2024-01-02",
-      status: "flagged",
-      views: 89,
-      comments: 12,
-      reports: 3,
-    },
-  ]
+  const { getUsers, updateUserStatus, getUser, updateMe } = useUserApi()
+  const { toast } = useToast()
+  const [users, setUsers] = useState<User[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setLoading(true)
+    getUsers()
+      .then(setUsers)
+      .catch(() => setError("Erreur lors du chargement des utilisateurs"))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const activeUsersCount = users.filter(u => u.status === 'active').length;
+  
+  // Calculate users who joined this month
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  const usersJoinedThisMonth = users.filter(user => {
+    if (!user.created_at) return false;
+    const joinDate = new Date(user.created_at);
+    return joinDate.getMonth() === currentMonth && joinDate.getFullYear() === currentYear;
+  }).length;
+
+
+
+
+
+  const handleSuspend = async (userId: string | number) => {
+    try {
+      await updateUserStatus(String(userId), "suspended")
+      setUsers(users.map(u => u.id === userId ? { ...u, status: "suspended" } : u))
+      toast({ title: "Utilisateur suspendu", description: "L'utilisateur a été suspendu." })
+    } catch {
+      toast({ title: "Erreur", description: "Impossible de suspendre l'utilisateur.", variant: "destructive" })
+    }
+  }
+
+  const handleApprove = async (userId: string | number) => {
+    try {
+      await updateUserStatus(String(userId), "active")
+      setUsers(users.map(u => u.id === userId ? { ...u, status: "active" } : u))
+      toast({ title: "Utilisateur approuvé", description: "L'utilisateur a été approuvé." })
+    } catch {
+      toast({ title: "Erreur", description: "Impossible d'approuver l'utilisateur.", variant: "destructive" })
+    }
+  }
+
+  const handleViewProfile = async (userId: string | number) => {
+    setProfileLoading(true)
+    setProfileError(null)
+    setShowProfileModal(true)
+    try {
+      const user = await getUser(String(userId))
+      setSelectedUser(user)
+    } catch {
+      setProfileError("Erreur lors du chargement du profil utilisateur.")
+    } finally {
+      setProfileLoading(false)
+    }
+  }
+
+  // Remove mock videos array
+  // const videos: VideoItem[] = [
+  //   {
+  //     id: "1",
+  //     title: "Championnat Régional Final - Épée",
+  //     athlete: "Marie Dubois",
+  //     uploader: "Marie Dubois",
+  //     uploadDate: "2024-01-01",
+  //     status: "published",
+  //     views: 156,
+  //     comments: 8,
+  //     reports: 0,
+  //   },
+  //   {
+  //     id: "2",
+  //     title: "Entraînement Technique Controversé",
+  //     athlete: "Jean Martin",
+  //     uploader: "Coach Bernard",
+  //     uploadDate: "2024-01-02",
+  //     status: "flagged",
+  //     views: 89,
+  //     comments: 12,
+  //     reports: 3,
+  //   },
+  // ]
+
+  const { getVideos, deleteVideo, updateVideoStatus, getVideo } = useVideoApi()
+  const [videos, setVideos] = useState<VideoItem[]>([])
+  const [loadingVideos, setLoadingVideos] = useState(true)
+  const [errorVideos, setErrorVideos] = useState<string | null>(null)
+
+  useEffect(() => {
+    setLoadingVideos(true)
+    getVideos()
+      .then(setVideos)
+      .catch(() => setErrorVideos("Erreur lors du chargement des vidéos"))
+      .finally(() => setLoadingVideos(false))
+  }, [])
+
+  // Filter users based on search term
+  const filteredUsers = users.filter(user => {
+    if (!searchTerm) return true;
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      user.name?.toLowerCase().includes(searchLower) ||
+      user.email?.toLowerCase().includes(searchLower) ||
+      user.role?.toLowerCase().includes(searchLower) ||
+      user.status?.toLowerCase().includes(searchLower)
+    );
+  });
+
+  // Filter videos based on search term
+  const filteredVideos = videos.filter(video => {
+    if (!searchTerm) return true;
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      video.title?.toLowerCase().includes(searchLower) ||
+      video.athlete?.toLowerCase().includes(searchLower) ||
+      video.uploader?.toLowerCase().includes(searchLower) ||
+      video.status?.toLowerCase().includes(searchLower)
+    );
+  });
+
+  const handleDeleteVideo = async (videoId: string) => {
+    try {
+      await deleteVideo(videoId)
+      setVideos(videos.filter(v => v.id !== videoId))
+      toast({ title: "Vidéo supprimée", description: "La vidéo a été supprimée avec succès." })
+    } catch {
+      toast({ title: "Erreur", description: "Impossible de supprimer la vidéo.", variant: "destructive" })
+    }
+  }
+
+  const handlePublishVideo = async (videoId: string) => {
+    try {
+      await updateVideoStatus(videoId, "published")
+      setVideos(videos.map(v => v.id === videoId ? { ...v, status: "published" } : v))
+      toast({ title: "Vidéo publiée", description: "La vidéo a été publiée." })
+    } catch {
+      toast({ title: "Erreur", description: "Impossible de publier la vidéo.", variant: "destructive" })
+    }
+  }
+
+  const handleFlagVideo = async (videoId: string) => {
+    try {
+      await updateVideoStatus(videoId, "flagged")
+      setVideos(videos.map(v => v.id === videoId ? { ...v, status: "flagged" } : v))
+      toast({ title: "Vidéo signalée", description: "La vidéo a été signalée." })
+    } catch {
+      toast({ title: "Erreur", description: "Impossible de signaler la vidéo.", variant: "destructive" })
+    }
+  }
 
   const comments: CommentItem[] = [
     {
@@ -171,6 +319,55 @@ export function AdminManagementInterface() {
     }
   }
 
+  // Helper to format dates
+  function formatDate(dateStr?: string | null) {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' });
+  }
+  // Helper to get relative time (minutes, hours, days)
+  function relativeTime(dateStr?: string | null) {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSec = Math.floor(diffMs / 1000);
+    if (diffSec < 60) return `il y a ${diffSec} sec`;
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `il y a ${diffMin} min`;
+    const diffH = Math.floor(diffMin / 60);
+    if (diffH < 24) return `il y a ${diffH} h`;
+    const diffD = Math.floor(diffH / 24);
+    if (diffD < 30) return `il y a ${diffD} j`;
+    return formatDate(dateStr);
+  }
+
+  const handleSaveProfile = async () => {
+    if (!selectedUser) return
+    setProfileLoading(true)
+    try {
+      // Update user profile via API
+      await updateMe({
+        name: selectedUser.name || '',
+        phone: selectedUser.phone || '',
+        club_name: selectedUser.club_name || '',
+        bio: selectedUser.bio || '',
+        avatar_url: selectedUser.avatar_url || '',
+      })
+      // Refresh users list to update last activity
+      const updatedUsers = await getUsers()
+      setUsers(updatedUsers)
+      toast({ title: "Profil mis à jour", description: "Les informations de l'utilisateur ont été sauvegardées." })
+      setShowProfileModal(false)
+    } catch {
+      setProfileError("Erreur lors de la sauvegarde du profil.")
+    } finally {
+      setProfileLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -193,8 +390,8 @@ export function AdminManagementInterface() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">127</div>
-            <p className="text-xs text-muted-foreground">+12% ce mois</p>
+            <div className="text-2xl font-bold">{activeUsersCount}</div>
+              <p className="text-xs text-muted-foreground">{usersJoinedThisMonth} nouveaux ce mois</p>
           </CardContent>
         </Card>
         <Card>
@@ -243,11 +440,21 @@ export function AdminManagementInterface() {
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Rechercher..."
+              placeholder="Rechercher utilisateurs, vidéos..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
+              className="pl-10 pr-10"
             />
+            {searchTerm && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                onClick={() => setSearchTerm("")}
+              >
+                ×
+              </Button>
+            )}
           </div>
         </div>
 
@@ -269,13 +476,26 @@ export function AdminManagementInterface() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users.map((user) => (
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={6}>Chargement...</TableCell>
+                    </TableRow>
+                  ) : error ? (
+                    <TableRow>
+                      <TableCell colSpan={6}>{error}</TableCell>
+                    </TableRow>
+                  ) : filteredUsers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6}>Aucun utilisateur trouvé.</TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredUsers.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar className="h-8 w-8">
-                            <AvatarImage src={`https://placehold.co/64x64?text=${user.name.charAt(0)}`} />
-                            <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                              <AvatarImage src={`https://placehold.co/64x64?text=${user.name?.charAt(0) ?? "U"}`} />
+                              <AvatarFallback>{user.name?.charAt(0) ?? "U"}</AvatarFallback>
                           </Avatar>
                           <div>
                             <p className="font-medium">{user.name}</p>
@@ -297,8 +517,8 @@ export function AdminManagementInterface() {
                           {user.status === "active" ? "Actif" : user.status === "pending" ? "En attente" : "Suspendu"}
                         </Badge>
                       </TableCell>
-                      <TableCell>{user.lastActive}</TableCell>
-                      <TableCell>{user.videosUploaded}</TableCell>
+                        <TableCell>{user.last_login ? relativeTime(user.last_login) : '-'}</TableCell>
+                        <TableCell>{user.videosUploaded ?? 0}</TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -307,27 +527,29 @@ export function AdminManagementInterface() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleViewProfile(user.id)}>
                               <Eye className="h-4 w-4 mr-2" />
                               Voir Profil
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
+                              {user.status !== "active" && (
+                                <DropdownMenuItem onClick={() => handleApprove(user.id)}>
                               <UserCheck className="h-4 w-4 mr-2" />
                               Approuver
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
+                              )}
+                              {user.status === "active" && (
+                                <DropdownMenuItem onClick={() => handleSuspend(user.id)}>
                               <UserX className="h-4 w-4 mr-2" />
                               Suspendre
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="text-red-600">
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Supprimer
-                            </DropdownMenuItem>
+                              )}
+
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -353,7 +575,22 @@ export function AdminManagementInterface() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {videos.map((video) => (
+                  {loadingVideos ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8">
+                        <Loading />
+                      </TableCell>
+                    </TableRow>
+                  ) : errorVideos ? (
+                    <TableRow>
+                      <TableCell colSpan={7}>{errorVideos}</TableCell>
+                    </TableRow>
+                  ) : filteredVideos.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7}>Aucune vidéo trouvée.</TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredVideos.map((video) => (
                     <TableRow key={video.id}>
                       <TableCell className="font-medium">{video.title}</TableCell>
                       <TableCell>{video.athlete}</TableCell>
@@ -379,15 +616,23 @@ export function AdminManagementInterface() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => getVideo(video.id)}>
                               <Eye className="h-4 w-4 mr-2" />
                               Voir Vidéo
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
+                              {video.status !== "published" && (
+                                <DropdownMenuItem onClick={() => handlePublishVideo(video.id)}>
                               <UserCheck className="h-4 w-4 mr-2" />
-                              Approuver
+                                  Publier
+                                </DropdownMenuItem>
+                              )}
+                              {video.status !== "flagged" && (
+                                <DropdownMenuItem onClick={() => handleFlagVideo(video.id)}>
+                                  <Flag className="h-4 w-4 mr-2" />
+                                  Signaler
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="text-red-600">
+                              )}
+                              <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteVideo(video.id)}>
                               <Trash2 className="h-4 w-4 mr-2" />
                               Supprimer
                             </DropdownMenuItem>
@@ -395,7 +640,8 @@ export function AdminManagementInterface() {
                         </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -508,6 +754,17 @@ export function AdminManagementInterface() {
           </Card>
         </TabsContent>
       </Tabs>
+      <UserProfileModal
+        open={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        user={selectedUser}
+        loading={profileLoading}
+        error={profileError}
+        tab={profileTab}
+        setTab={setProfileTab}
+        onChange={(u) => setSelectedUser(u)}
+        onSave={handleSaveProfile}
+      />
     </div>
   )
 }

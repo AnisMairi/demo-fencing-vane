@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { jwtDecode } from "jwt-decode"
 
 export type UserRole = "local_contact" | "coach" | "administrator"
 
@@ -28,33 +29,121 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Check for existing session
     const savedUser = localStorage.getItem("user")
-    if (savedUser) {
-      setUser(JSON.parse(savedUser))
+    const accessToken = localStorage.getItem("access_token")
+    let logoutTimeout: number | null = null
+
+    if (savedUser && accessToken) {
+      try {
+        const decoded: any = jwtDecode(accessToken)
+        // Check if token is expired
+        const now = Date.now() / 1000
+        if (decoded.exp && decoded.exp < now) {
+          logout()
+        } else {
+          setUser(JSON.parse(savedUser))
+          // Set up auto-logout when token expires
+          if (decoded.exp) {
+            const msUntilExpiry = (decoded.exp - now) * 1000
+            logoutTimeout = setTimeout(() => {
+              logout()
+            }, msUntilExpiry)
+          }
+        }
+      } catch (e) {
+        logout()
+      }
     }
     setIsLoading(false)
+    return () => {
+      if (logoutTimeout) clearTimeout(logoutTimeout)
+    }
   }, [])
+
+  // Refresh token logic
+  const refreshAccessToken = async () => {
+    const refreshToken = localStorage.getItem("refresh_token")
+    if (!refreshToken) return false
+    try {
+      const response = await fetch("http://localhost:8000/api/v1/auth/refresh", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      })
+      if (!response.ok) {
+        logout()
+        return false
+      }
+      const data = await response.json()
+      localStorage.setItem("access_token", data.access_token)
+      // Optionally update user info
+      const decoded: any = jwtDecode(data.access_token)
+      const userInfo: User = {
+        id: decoded.sub || "",
+        email: decoded.email || "",
+        name: decoded.email ? decoded.email.split("@")[0] : "",
+        role: decoded.role || "local_contact",
+      }
+      setUser(userInfo)
+      localStorage.setItem("user", JSON.stringify(userInfo))
+      return true
+    } catch (e) {
+      logout()
+      return false
+    }
+  }
 
   const login = async (email: string, password: string) => {
     setIsLoading(true)
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    try {
+      const response = await fetch("http://localhost:8000/api/v1/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      })
 
-    // Mock user data based on email
-    const mockUser: User = {
-      id: "1",
-      email,
-      name: email.split("@")[0],
-      role: email.includes("admin") ? "administrator" : email.includes("coach") ? "coach" : "local_contact",
+      if (!response.ok) {
+        const errorData = await response.json()
+        if (errorData.detail === "Incorrect email or password") {
+          throw new Error("wrong_credentials")
+        } else if (errorData.detail && errorData.detail.toLowerCase().includes("not active")) {
+          throw new Error("account_suspended")
+        } else {
+          throw new Error(errorData.detail || "Login failed")
+        }
+      }
+
+      const data = await response.json()
+      // Save tokens
+      localStorage.setItem("access_token", data.access_token)
+      localStorage.setItem("refresh_token", data.refresh_token)
+
+      // Decode JWT to get user info
+      const decoded: any = jwtDecode(data.access_token)
+      const userInfo: User = {
+        id: decoded.sub || "",
+        email: decoded.email || email,
+        name: decoded.email ? decoded.email.split("@")[0] : email.split("@")[0],
+        role: decoded.role || "local_contact",
+      }
+      setUser(userInfo)
+      localStorage.setItem("user", JSON.stringify(userInfo))
+    } catch (err) {
+      throw err
+    } finally {
+      setIsLoading(false)
     }
-
-    setUser(mockUser)
-    localStorage.setItem("user", JSON.stringify(mockUser))
-    setIsLoading(false)
   }
 
   const logout = () => {
     setUser(null)
     localStorage.removeItem("user")
+    localStorage.removeItem("access_token")
+    localStorage.removeItem("refresh_token")
+    // Optionally, reload the page or redirect to login
   }
 
   return <AuthContext.Provider value={{ user, login, logout, isLoading }}>{children}</AuthContext.Provider>
