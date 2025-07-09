@@ -13,11 +13,11 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <div className="flex">
-        <aside className="hidden w-64 border-r bg-background md:block">
+      <div className="flex h-[calc(100vh-3.5rem)]">
+        <aside className="relative w-64 border-r bg-background overflow-y-auto">
           <Sidebar />
         </aside>
-        <main className="flex-1 p-6">{children}</main>
+        <main className="flex-1 p-6 overflow-y-auto">{children}</main>
       </div>
     </div>
   )

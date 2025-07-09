@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { Badge } from "@/components/ui/badge"
-import { Play, Pause, Maximize, SkipForward, RotateCcw, User, Calendar, Sword, Trophy } from "lucide-react"
+import { Play, Pause, Maximize, SkipForward, RotateCcw, User, Calendar, Sword, Trophy, Clock, Tag, MessageSquare } from "lucide-react"
 import Link from "next/link"
 
 interface VideoMetadata {
@@ -44,17 +44,54 @@ interface VideoMetadata {
   }
 }
 
-interface EnhancedVideoPlayerWithMetadataProps {
-  videoUrl: string
-  metadata: VideoMetadata
-  onTimeUpdate?: (currentTime: number) => void
+interface TimelineComment {
+  id: string
+  timestamp: number
+  content: string
+  author: {
+    name: string
+    avatar: string
+    role: "local_contact" | "coach" | "administrator"
+  }
+  createdAt: string
+  likes: number
+  replies: TimelineComment[]
+  isLiked?: boolean
 }
 
-export function EnhancedVideoPlayerWithMetadata({
+interface TimelineTag {
+  id: string
+  timestamp: number
+  tag: string
+  author: {
+    name: string
+    avatar: string
+    role: "local_contact" | "coach" | "administrator"
+  }
+  createdAt: string
+}
+
+interface EnhancedVideoPlayerWithTimelineProps {
+  videoUrl: string
+  metadata: VideoMetadata
+  timelineComments: TimelineComment[]
+  timelineTags: TimelineTag[]
+  onTimeUpdate?: (currentTime: number) => void
+  onAddTimelineComment?: (comment: { content: string; timestamp: number }) => void
+  onAddTimelineTag?: (tag: { tag: string; timestamp: number }) => void
+  onSeekToTime?: (time: number) => void
+}
+
+export function EnhancedVideoPlayerWithTimeline({
   videoUrl,
   metadata,
+  timelineComments,
+  timelineTags,
   onTimeUpdate,
-}: EnhancedVideoPlayerWithMetadataProps) {
+  onAddTimelineComment,
+  onAddTimelineTag,
+  onSeekToTime,
+}: EnhancedVideoPlayerWithTimelineProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
@@ -63,6 +100,7 @@ export function EnhancedVideoPlayerWithMetadata({
   const [isMuted, setIsMuted] = useState(false)
   const [playbackRate, setPlaybackRate] = useState(1)
   const [showControls, setShowControls] = useState(true)
+  const [showTimeline, setShowTimeline] = useState(true)
 
   useEffect(() => {
     const video = videoRef.current
@@ -103,6 +141,16 @@ export function EnhancedVideoPlayerWithMetadata({
     const newTime = (value[0] / 100) * duration
     video.currentTime = newTime
     setCurrentTime(newTime)
+    onSeekToTime?.(newTime)
+  }
+
+  const seekToTime = (time: number) => {
+    const video = videoRef.current
+    if (!video) return
+
+    video.currentTime = time
+    setCurrentTime(time)
+    onSeekToTime?.(time)
   }
 
   const formatTime = (time: number) => {
@@ -110,6 +158,33 @@ export function EnhancedVideoPlayerWithMetadata({
     const seconds = Math.floor(time % 60)
     return `${minutes}:${seconds.toString().padStart(2, "0")}`
   }
+
+  const getTimelineMarkers = () => {
+    const markers = []
+    
+    // Add comment markers
+    timelineComments.forEach(comment => {
+      markers.push({
+        type: 'comment',
+        time: comment.timestamp,
+        data: comment
+      })
+    })
+    
+    // Add tag markers
+    timelineTags.forEach(tag => {
+      markers.push({
+        type: 'tag',
+        time: tag.timestamp,
+        data: tag
+      })
+    })
+    
+    // Sort by timestamp
+    return markers.sort((a, b) => a.time - b.time)
+  }
+
+  const timelineMarkers = getTimelineMarkers()
 
   return (
     <div className="space-y-6">
@@ -191,6 +266,134 @@ export function EnhancedVideoPlayerWithMetadata({
             </div>
           </div>
         </div>
+      </Card>
+
+      {/* Timeline Section */}
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Timeline des commentaires et tags
+            </h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowTimeline(!showTimeline)}
+            >
+              {showTimeline ? "Masquer" : "Afficher"}
+            </Button>
+          </div>
+
+          {showTimeline && (
+            <div className="space-y-4">
+              {/* Timeline Bar */}
+              <div className="relative h-8 bg-gray-200 rounded-lg overflow-hidden">
+                <div 
+                  className="absolute top-0 left-0 h-full bg-blue-500 transition-all duration-100"
+                  style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
+                />
+                
+                {/* Timeline Markers */}
+                {timelineMarkers.map((marker, index) => (
+                  <div
+                    key={`${marker.type}-${marker.data.id}`}
+                    className="absolute top-0 h-full cursor-pointer transition-all duration-200 hover:scale-110"
+                    style={{ 
+                      left: `${(marker.time / duration) * 100}%`,
+                      transform: 'translateX(-50%)'
+                    }}
+                    onClick={() => seekToTime(marker.time)}
+                  >
+                    <div className={`w-3 h-3 rounded-full border-2 border-white ${
+                      marker.type === 'comment' ? 'bg-green-500' : 'bg-orange-500'
+                    }`} />
+                    <div className="absolute bottom-full mb-1 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity whitespace-nowrap">
+                      {formatTime(marker.time)}
+                      {marker.type === 'comment' && (
+                        <div className="flex items-center gap-1 mt-1">
+                          <MessageSquare className="h-3 w-3" />
+                          {marker.data.content.substring(0, 30)}...
+                        </div>
+                      )}
+                      {marker.type === 'tag' && (
+                        <div className="flex items-center gap-1 mt-1">
+                          <Tag className="h-3 w-3" />
+                          {marker.data.tag}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Timeline Legend */}
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-green-500 rounded-full" />
+                  <span>Commentaires</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-orange-500 rounded-full" />
+                  <span>Tags</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full" />
+                  <span>Position actuelle</span>
+                </div>
+              </div>
+
+              {/* Timeline Comments List */}
+              <div className="space-y-3 max-h-64 overflow-y-auto">
+                {timelineMarkers.length === 0 ? (
+                  <div className="text-center py-4 text-muted-foreground">
+                    <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>Aucun commentaire ou tag temporel pour le moment</p>
+                  </div>
+                ) : (
+                  timelineMarkers.map((marker) => (
+                    <div
+                      key={`${marker.type}-${marker.data.id}`}
+                      className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                      onClick={() => seekToTime(marker.time)}
+                    >
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs ${
+                        marker.type === 'comment' ? 'bg-green-500' : 'bg-orange-500'
+                      }`}>
+                        {marker.type === 'comment' ? <MessageSquare className="h-4 w-4" /> : <Tag className="h-4 w-4" />}
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-mono text-sm bg-muted px-2 py-1 rounded">
+                            {formatTime(marker.time)}
+                          </span>
+                          <span className="text-sm font-medium">{marker.data.author.name}</span>
+                          <Badge variant="outline" className="text-xs">
+                            {marker.data.author.role === "local_contact" ? "Contact Local" : 
+                             marker.data.author.role === "coach" ? "Entraîneur" : "Administrateur"}
+                          </Badge>
+                        </div>
+                        
+                        {marker.type === 'comment' && (
+                          <p className="text-sm text-muted-foreground line-clamp-2">
+                            {marker.data.content}
+                          </p>
+                        )}
+                        
+                        {marker.type === 'tag' && (
+                          <Badge variant="secondary" className="text-xs">
+                            {marker.data.tag}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </CardContent>
       </Card>
 
       {/* Video Metadata */}
@@ -321,4 +524,4 @@ export function EnhancedVideoPlayerWithMetadata({
       </div>
     </div>
   )
-}
+} 
