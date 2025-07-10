@@ -31,7 +31,6 @@ interface VideoMetadata {
     timestamp: string
     videoTimestamp?: number
   }[]
-  tags: string[]
 }
 
 interface EnhancedVideoPlayerProps {
@@ -308,19 +307,6 @@ export function EnhancedVideoPlayer({ videoUrl, metadata, onTimeUpdate }: Enhanc
                 <p className="font-medium">{metadata.duration}</p>
               </div>
             </div>
-
-            {metadata.tags.length > 0 && (
-              <div>
-                <h4 className="font-medium text-sm text-muted-foreground mb-2">TAGS</h4>
-                <div className="flex flex-wrap gap-2">
-                  {metadata.tags.map((tag) => (
-                    <Badge key={tag} variant="secondary">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </CardContent>
       </Card>

@@ -22,7 +22,6 @@ export default function VideosPage() {
       athlete: "Marie Dubois (16, Féminin)",
       weapon: "épée",
       competitionType: "Championnat Régional",
-      tags: ["final", "excellent jeu de jambes"],
       uploadedAt: "il y a 2 jours",
       commentVisibility: "public",
     },
@@ -36,7 +35,6 @@ export default function VideosPage() {
       athlete: "Jean Martin (14, Masculin)",
       weapon: "fleuret",
       competitionType: "Circuit Jeunes",
-      tags: ["jeunes", "technique fleuret"],
       uploadedAt: "il y a 1 semaine",
       commentVisibility: "private",
     },
@@ -50,7 +48,6 @@ export default function VideosPage() {
       athlete: "Sophie Laurent (17, Féminin)",
       weapon: "sabre",
       competitionType: "Tournoi de Club",
-      tags: ["sabre", "tournoi", "avancé"],
       uploadedAt: "il y a 3 jours",
       commentVisibility: "public",
     },
@@ -69,8 +66,7 @@ export default function VideosPage() {
       filtered = filtered.filter(
         (video) =>
           video.title.toLowerCase().includes(searchTerm) ||
-          video.athlete.toLowerCase().includes(searchTerm) ||
-          video.tags.some((tag) => tag.toLowerCase().includes(searchTerm)),
+          video.athlete.toLowerCase().includes(searchTerm),
       )
     }
 

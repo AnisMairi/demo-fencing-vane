@@ -259,13 +259,7 @@ export function EnhancedVideoPlayerWithMetadata({
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  {metadata.tags.map((tag) => (
-                    <Badge key={tag} variant="secondary">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
+                {/* Remove tags display section (Badge, etc.) */}
               </div>
             </CardContent>
           </Card>

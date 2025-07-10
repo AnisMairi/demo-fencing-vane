@@ -38,7 +38,6 @@ export default function VideoViewPage({ params }: { params: { id: string } }) {
     uploadedAt: "il y a 2 jours",
     duration: "12:34",
     views: 156,
-    tags: ["final", "excellent jeu de jambes", "championnat régional", "technique épée"],
     uploader: {
       name: "Marie Dubois",
       role: "Contact Local",

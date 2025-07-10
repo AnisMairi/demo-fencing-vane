@@ -36,13 +36,11 @@ interface VideoMetadata {
   competitionType: string
   comments: string
   commentVisibility: "public" | "private"
-  tags: string[]
 }
 
 export function EnhancedVideoUpload() {
   const { user } = useAuth()
   const [videoFiles, setVideoFiles] = useState<VideoFile[]>([])
-  const [currentTag, setCurrentTag] = useState("")
   const [metadata, setMetadata] = useState<VideoMetadata>({
     athlete: {
       firstName: "",
@@ -54,7 +52,6 @@ export function EnhancedVideoUpload() {
     competitionType: "",
     comments: "",
     commentVisibility: "public",
-    tags: [],
   })
 
   const competitionTypes = [
@@ -102,20 +99,11 @@ export function EnhancedVideoUpload() {
   }
 
   const addTag = () => {
-    if (currentTag.trim() && !metadata.tags.includes(currentTag.trim())) {
-      setMetadata((prev) => ({
-        ...prev,
-        tags: [...prev.tags, currentTag.trim()],
-      }))
-      setCurrentTag("")
-    }
+    // This function is no longer needed as tags are removed
   }
 
   const removeTag = (tagToRemove: string) => {
-    setMetadata((prev) => ({
-      ...prev,
-      tags: prev.tags.filter((tag) => tag !== tagToRemove),
-    }))
+    // This function is no longer needed as tags are removed
   }
 
   const simulateUpload = async (fileId: string) => {
@@ -426,36 +414,7 @@ export function EnhancedVideoUpload() {
         </CardContent>
       </Card>
 
-      {/* Tags */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Tags (Optional)</CardTitle>
-          <CardDescription>Add tags to help categorize and search for this video</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <Input
-              placeholder="Add a tag (e.g., 'final bout', 'excellent footwork')"
-              value={currentTag}
-              onChange={(e) => setCurrentTag(e.target.value)}
-              onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addTag())}
-            />
-            <Button type="button" onClick={addTag} variant="outline">
-              Add
-            </Button>
-          </div>
-          {metadata.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {metadata.tags.map((tag) => (
-                <Badge key={tag} variant="secondary" className="cursor-pointer" onClick={() => removeTag(tag)}>
-                  {tag}
-                  <X className="ml-1 h-3 w-3" />
-                </Badge>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Remove Tags UI section (Card, Input, Button, Badge, etc.) */}
 
       {/* Form Validation Alert */}
       {!isFormValid() && videoFiles.length > 0 && (

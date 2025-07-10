@@ -18,7 +18,6 @@ interface VideoCardProps {
     views: number
     comments: number
     athlete: string
-    tags: string[]
     uploadedAt: string
     commentVisibility?: "public" | "private"
   }
@@ -86,14 +85,7 @@ export function VideoCard({ video }: VideoCardProps) {
           )}
         </div>
 
-        {/* Tags */}
-        <div className="flex flex-wrap gap-1">
-          {video.tags.map((tag) => (
-            <Badge key={tag} variant="secondary" className="text-xs">
-              {tag}
-            </Badge>
-          ))}
-        </div>
+        {/* Remove tags display section (Badge, etc.) */}
 
         {/* Actions */}
         <Button asChild className="w-full">

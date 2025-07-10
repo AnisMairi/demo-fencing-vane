@@ -21,12 +21,18 @@ import {
   UserX,
   Flag,
   Settings,
+  X,
+  Calendar,
+  User,
+  Trophy,
+  Sword,
 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useVideoApi } from "@/hooks/use-video-api"
 import { Loading } from "@/components/common/loading"
 import { UserProfileModal } from "./UserProfileModal"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 
 interface User {
   id: string | number
@@ -56,6 +62,7 @@ interface VideoItem {
   views: number
   comments: number
   reports: number
+  rawVideo?: any // Store original API data
 }
 
 interface CommentItem {
@@ -76,6 +83,12 @@ export function AdminManagementInterface() {
   const [profileError, setProfileError] = useState<string | null>(null)
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [profileTab, setProfileTab] = useState<'profil' | 'details' | 'activity'>('profil')
+  
+  // Video modal state
+  const [showVideoModal, setShowVideoModal] = useState(false)
+  const [selectedVideo, setSelectedVideo] = useState<any>(null)
+  const [videoLoading, setVideoLoading] = useState(false)
+  const [videoError, setVideoError] = useState<string | null>(null)
 
   // Remove mock users array
   // const users: User[] = [
@@ -208,10 +221,55 @@ export function AdminManagementInterface() {
   useEffect(() => {
     setLoadingVideos(true)
     getVideos()
-      .then(setVideos)
+      .then((videosData) => {
+        // Transform API data to match our interface
+        const transformedVideos = videosData.map((video: any) => {
+          // Handle athlete names - show both if there are two, or just one
+          let athleteNames = '';
+          if (video.athlete_right && video.athlete_left) {
+            // Two athletes - show both names
+            athleteNames = `${video.athlete_right.name}\n${video.athlete_left.name}`;
+          } else if (video.athlete_right) {
+            // Only right athlete
+            athleteNames = video.athlete_right.name;
+          } else if (video.athlete_left) {
+            // Only left athlete
+            athleteNames = video.athlete_left.name;
+          } else {
+            athleteNames = 'Athlète inconnu';
+          }
+
+          return {
+            id: video.id.toString(),
+            title: video.title || 'Sans titre',
+            athlete: athleteNames,
+            uploader: video.uploader?.name || video.uploader?.email || 'Utilisateur inconnu',
+            uploadDate: video.created_at || video.upload_date || '',
+            status: video.status?.toLowerCase() || 'pending',
+            views: video.view_count || 0,
+            comments: video.comment_count || 0,
+            reports: video.report_count || 0,
+            // Store raw data for actions
+            rawVideo: video,
+          }
+        })
+        setVideos(transformedVideos)
+      })
       .catch(() => setErrorVideos("Erreur lors du chargement des vidéos"))
       .finally(() => setLoadingVideos(false))
   }, [])
+
+  // Calculate video statistics
+  const publishedVideosCount = videos.filter(v => v.status === 'published').length;
+  const flaggedVideosCount = videos.filter(v => v.status === 'flagged').length;
+  const totalViews = videos.reduce((sum, v) => sum + v.views, 0);
+  
+  // Calculate videos uploaded this month
+  const videosUploadedThisMonth = videos.filter(video => {
+    if (!video.uploadDate) return false;
+    const uploadDate = new Date(video.uploadDate);
+    return uploadDate.getMonth() === currentMonth && uploadDate.getFullYear() === currentYear;
+  }).length;
 
   // Filter users based on search term
   const filteredUsers = users.filter(user => {
@@ -265,6 +323,32 @@ export function AdminManagementInterface() {
     } catch {
       toast({ title: "Erreur", description: "Impossible de signaler la vidéo.", variant: "destructive" })
     }
+  }
+
+  const handleViewVideo = async (videoId: string) => {
+    setVideoLoading(true)
+    setVideoError(null)
+    setShowVideoModal(true)
+    
+    try {
+      // Get video details without incrementing view count (admin view)
+      const video = await getVideo(videoId)
+      console.log('Video details:', video)
+      setSelectedVideo(video)
+    } catch (error) {
+      console.error('Error fetching video:', error)
+      setVideoError("Impossible de charger la vidéo")
+      toast({ title: "Erreur", description: "Impossible de charger la vidéo.", variant: "destructive" })
+    } finally {
+      setVideoLoading(false)
+    }
+  }
+
+  const handleCloseVideoModal = () => {
+    setShowVideoModal(false)
+    setSelectedVideo(null)
+    setVideoError(null)
+    setVideoLoading(false)
   }
 
   const comments: CommentItem[] = [
@@ -400,8 +484,8 @@ export function AdminManagementInterface() {
             <Video className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1,234</div>
-            <p className="text-xs text-muted-foreground">+8% ce mois</p>
+            <div className="text-2xl font-bold">{publishedVideosCount}</div>
+            <p className="text-xs text-muted-foreground">{videosUploadedThisMonth} nouvelles ce mois</p>
           </CardContent>
         </Card>
         <Card>
@@ -410,7 +494,7 @@ export function AdminManagementInterface() {
             <Flag className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">8</div>
+            <div className="text-2xl font-bold">{flaggedVideosCount}</div>
             <p className="text-xs text-red-600">À traiter</p>
           </CardContent>
         </Card>
@@ -568,6 +652,7 @@ export function AdminManagementInterface() {
                     <TableHead>Titre</TableHead>
                     <TableHead>Athlète</TableHead>
                     <TableHead>Téléchargé par</TableHead>
+                    <TableHead>Date</TableHead>
                     <TableHead>Statut</TableHead>
                     <TableHead>Vues</TableHead>
                     <TableHead>Signalements</TableHead>
@@ -577,24 +662,29 @@ export function AdminManagementInterface() {
                 <TableBody>
                   {loadingVideos ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8">
+                      <TableCell colSpan={8} className="text-center py-8">
                         <Loading />
                       </TableCell>
                     </TableRow>
                   ) : errorVideos ? (
                     <TableRow>
-                      <TableCell colSpan={7}>{errorVideos}</TableCell>
+                      <TableCell colSpan={8}>{errorVideos}</TableCell>
                     </TableRow>
                   ) : filteredVideos.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7}>Aucune vidéo trouvée.</TableCell>
+                      <TableCell colSpan={8}>Aucune vidéo trouvée.</TableCell>
                     </TableRow>
                   ) : (
                     filteredVideos.map((video) => (
                     <TableRow key={video.id}>
                       <TableCell className="font-medium">{video.title}</TableCell>
-                      <TableCell>{video.athlete}</TableCell>
+                      <TableCell>
+                        <div className="whitespace-pre-line text-sm">
+                          {video.athlete}
+                        </div>
+                      </TableCell>
                       <TableCell>{video.uploader}</TableCell>
+                      <TableCell>{video.uploadDate ? formatDate(video.uploadDate) : '-'}</TableCell>
                       <TableCell>
                         <Badge className={getStatusColor(video.status)}>
                           {video.status === "published"
@@ -616,7 +706,7 @@ export function AdminManagementInterface() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => getVideo(video.id)}>
+                              <DropdownMenuItem onClick={() => handleViewVideo(video.id)}>
                               <Eye className="h-4 w-4 mr-2" />
                               Voir Vidéo
                             </DropdownMenuItem>
@@ -765,6 +855,190 @@ export function AdminManagementInterface() {
         onChange={(u) => setSelectedUser(u)}
         onSave={handleSaveProfile}
       />
+
+      {/* Video Preview Modal */}
+      <Dialog open={showVideoModal} onOpenChange={handleCloseVideoModal}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Prévisualisation de la Vidéo</DialogTitle>
+            <DialogDescription>
+              Aperçu de la vidéo et de ses métadonnées pour la modération.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {videoLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loading />
+            </div>
+          ) : videoError ? (
+            <div className="text-center py-12">
+              <p className="text-red-500">{videoError}</p>
+              <Button 
+                variant="outline" 
+                className="mt-4"
+                onClick={() => setShowVideoModal(false)}
+              >
+                Fermer
+              </Button>
+            </div>
+          ) : selectedVideo ? (
+            <div className="space-y-6">
+              {/* Video Player */}
+              <div className="aspect-video bg-black rounded-lg overflow-hidden">
+                {selectedVideo.file_path ? (
+                  <video
+                    src={`http://localhost:8000/${selectedVideo.file_path}`}
+                    controls
+                    className="w-full h-full object-contain"
+                    preload="metadata"
+                    autoPlay={false}
+                    muted={false}
+                    playsInline
+                    crossOrigin="anonymous"
+                    onError={(e) => {
+                      console.error('Video error:', e);
+                      const videoElement = e.target as HTMLVideoElement;
+                      console.error('Video element:', videoElement);
+                      console.error('Video src:', videoElement?.src);
+                      setVideoError("Erreur lors du chargement de la vidéo. Vérifiez que le fichier existe sur le serveur.");
+                    }}
+                  >
+                    Votre navigateur ne supporte pas la lecture de vidéos.
+                  </video>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-white">
+                    <p>Aucune vidéo disponible</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Video Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-lg font-semibold mb-2">{selectedVideo.title}</h3>
+                    {selectedVideo.description && (
+                      <p className="text-muted-foreground">{selectedVideo.description}</p>
+                    )}
+                  </div>
+
+                  {/* Athletes Information */}
+                  <div className="space-y-2">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      Athlètes
+                    </h4>
+                    <div className="space-y-1">
+                      {selectedVideo.athleteRight_name && (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">Droite</Badge>
+                          <span>{selectedVideo.athleteRight_name}</span>
+                        </div>
+                      )}
+                      {selectedVideo.athleteLeft_name && (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">Gauche</Badge>
+                          <span>{selectedVideo.athleteLeft_name}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Competition Information */}
+                  <div className="space-y-2">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <Trophy className="h-4 w-4" />
+                      Compétition
+                    </h4>
+                    <div className="space-y-1 text-sm">
+                      <p><strong>Nom:</strong> {selectedVideo.competition_name || 'Non spécifié'}</p>
+                      <p><strong>Date:</strong> {selectedVideo.competition_date ? formatDate(selectedVideo.competition_date) : 'Non spécifiée'}</p>
+                      {selectedVideo.score && (
+                        <p><strong>Score:</strong> {selectedVideo.score}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Weapon Information */}
+                  <div className="space-y-2">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <Sword className="h-4 w-4" />
+                      Arme
+                    </h4>
+                    <Badge className={getStatusColor(selectedVideo.weapon_type)}>
+                      {selectedVideo.weapon_type === 'foil' ? 'Fleuret' : 
+                       selectedVideo.weapon_type === 'epee' ? 'Épée' : 
+                       selectedVideo.weapon_type === 'sabre' ? 'Sabre' : 
+                       selectedVideo.weapon_type}
+                    </Badge>
+                  </div>
+
+                  {/* Upload Information */}
+                  <div className="space-y-2">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      Informations de téléchargement
+                    </h4>
+                    <div className="space-y-1 text-sm">
+                      <p><strong>Téléchargé par:</strong> {selectedVideo.uploader_name || 'Utilisateur inconnu'}</p>
+                      <p><strong>Date:</strong> {selectedVideo.created_at ? formatDate(selectedVideo.created_at) : 'Non spécifiée'}</p>
+                      <div className="flex items-center gap-2">
+                        <strong>Statut:</strong> 
+                        <Badge className={getStatusColor(selectedVideo.status)}>
+                          {selectedVideo.status === "published" ? "Publié" : 
+                           selectedVideo.status === "pending" ? "En attente" : 
+                           selectedVideo.status === "flagged" ? "Signalé" : 
+                           "Supprimé"}
+                        </Badge>
+                      </div>
+                      <p><strong>Vues:</strong> {selectedVideo.view_count || 0}</p>
+                      {selectedVideo.file_size && (
+                        <p><strong>Taille:</strong> {(selectedVideo.file_size / 1024 / 1024).toFixed(2)} MB</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="space-y-2">
+                    <h4 className="font-medium">Actions</h4>
+                    <div className="flex gap-2">
+                      {selectedVideo.status !== "published" && (
+                        <Button 
+                          size="sm" 
+                          onClick={() => handlePublishVideo(selectedVideo.id)}
+                        >
+                          <UserCheck className="h-4 w-4 mr-2" />
+                          Publier
+                        </Button>
+                      )}
+                      {selectedVideo.status !== "flagged" && (
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => handleFlagVideo(selectedVideo.id)}
+                        >
+                          <Flag className="h-4 w-4 mr-2" />
+                          Signaler
+                        </Button>
+                      )}
+                      <Button 
+                        size="sm" 
+                        variant="destructive"
+                        onClick={() => handleDeleteVideo(selectedVideo.id)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Supprimer
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
