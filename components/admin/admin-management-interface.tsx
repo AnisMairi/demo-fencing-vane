@@ -224,17 +224,23 @@ export function AdminManagementInterface() {
       .then((videosData) => {
         // Transform API data to match our interface
         const transformedVideos = videosData.map((video: any) => {
-          // Handle athlete names - show both if there are two, or just one
+          // Handle athlete names - show both if there are two different athletes, or just one
           let athleteNames = '';
-          if (video.athlete_right && video.athlete_left) {
-            // Two athletes - show both names
-            athleteNames = `${video.athlete_right.name}\n${video.athlete_left.name}`;
-          } else if (video.athlete_right) {
+          if (video.athleteRight_name && video.athleteLeft_name) {
+            // Check if both athletes exist and if they're the same person
+            if (video.athleteRight_id === video.athleteLeft_id) {
+              // Same athlete - show only once
+              athleteNames = video.athleteRight_name;
+            } else {
+              // Different athletes - show both with Right/Left labels
+              athleteNames = `Droite: ${video.athleteRight_name}\nGauche: ${video.athleteLeft_name}`;
+            }
+          } else if (video.athleteRight_name) {
             // Only right athlete
-            athleteNames = video.athlete_right.name;
-          } else if (video.athlete_left) {
+            athleteNames = video.athleteRight_name;
+          } else if (video.athleteLeft_name) {
             // Only left athlete
-            athleteNames = video.athlete_left.name;
+            athleteNames = video.athleteLeft_name;
           } else {
             athleteNames = 'Athlète inconnu';
           }
@@ -243,7 +249,7 @@ export function AdminManagementInterface() {
             id: video.id.toString(),
             title: video.title || 'Sans titre',
             athlete: athleteNames,
-            uploader: video.uploader?.name || video.uploader?.email || 'Utilisateur inconnu',
+            uploader: video.uploader_name || video.uploader?.name || video.uploader?.email || 'Utilisateur inconnu',
             uploadDate: video.created_at || video.upload_date || '',
             status: video.status?.toLowerCase() || 'pending',
             views: video.view_count || 0,
@@ -859,11 +865,8 @@ export function AdminManagementInterface() {
       {/* Video Preview Modal */}
       <Dialog open={showVideoModal} onOpenChange={handleCloseVideoModal}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Prévisualisation de la Vidéo</DialogTitle>
-            <DialogDescription>
-              Aperçu de la vidéo et de ses métadonnées pour la modération.
-            </DialogDescription>
+          <DialogHeader className="pt-2 pb-2">
+            <DialogTitle>Détails de la vidéo</DialogTitle>
           </DialogHeader>
           
           {videoLoading ? (
@@ -929,17 +932,43 @@ export function AdminManagementInterface() {
                       Athlètes
                     </h4>
                     <div className="space-y-1">
-                      {selectedVideo.athleteRight_name && (
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">Droite</Badge>
-                          <span>{selectedVideo.athleteRight_name}</span>
-                        </div>
-                      )}
-                      {selectedVideo.athleteLeft_name && (
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">Gauche</Badge>
-                          <span>{selectedVideo.athleteLeft_name}</span>
-                        </div>
+                      {selectedVideo.athleteRight_name && selectedVideo.athleteLeft_name ? (
+                        // Check if both athletes exist and if they're the same person
+                        selectedVideo.athleteRight_id === selectedVideo.athleteLeft_id ? (
+                          // Same athlete
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline">Athlète</Badge>
+                            <span>{selectedVideo.athleteRight_name}</span>
+                          </div>
+                        ) : (
+                          // Different athletes - show both with Right/Left labels
+                          <>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline">Droite</Badge>
+                              <span>{selectedVideo.athleteRight_name}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline">Gauche</Badge>
+                              <span>{selectedVideo.athleteLeft_name}</span>
+                            </div>
+                          </>
+                        )
+                      ) : (
+                        // Only one athlete exists
+                        <>
+                          {selectedVideo.athleteRight_name && (
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline">Athlète</Badge>
+                              <span>{selectedVideo.athleteRight_name}</span>
+                            </div>
+                          )}
+                          {selectedVideo.athleteLeft_name && (
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline">Athlète</Badge>
+                              <span>{selectedVideo.athleteLeft_name}</span>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>

@@ -60,7 +60,7 @@ const mockAthletes: Athlete[] = [
 const weapons = [
   { display: "Fleuret", value: "foil" },
   { display: "Sabre", value: "sabre" },
-  { display: "Épée", value: "epee" }
+  { display: "Épée", value: "épée" }
 ]
 
 const competitionTypes = [
