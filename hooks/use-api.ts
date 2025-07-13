@@ -3,7 +3,7 @@ import { useAuth } from "@/lib/auth-context"
 import { jwtDecode } from "jwt-decode"
 
 export function useApi() {
-  const { user, logout, refreshAccessToken, login } = useAuth()
+  const { user, logout, refreshAccessToken } = useAuth()
 
   // Helper to check if token is expired
   const isTokenExpired = (token: string) => {
@@ -28,12 +28,20 @@ export function useApi() {
         }
         accessToken = localStorage.getItem("access_token")
       }
+      
       const headers = {
         ...(options.headers || {}),
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       }
-      const response = await fetch(url, { ...options, headers })
+      
+      const response = await fetch(url, { 
+        ...options, 
+        headers,
+        // Include credentials to send cookies with all requests
+        credentials: "include",
+      })
+      
       if (response.status === 401) {
         logout()
         throw new Error("Unauthorized. Please log in again.")
@@ -57,6 +65,7 @@ export function useApi() {
     (url: string) => apiFetch(url, { method: "GET" }),
     [apiFetch]
   )
+
   const put = useCallback(
     (url: string, body: any) =>
       apiFetch(url, {
@@ -65,6 +74,16 @@ export function useApi() {
       }),
     [apiFetch]
   )
+
+  const patch = useCallback(
+    (url: string, body: any) =>
+      apiFetch(url, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    [apiFetch]
+  )
+
   const del = useCallback(
     (url: string) => apiFetch(url, { method: "DELETE" }),
     [apiFetch]
@@ -83,16 +102,10 @@ export function useApi() {
     [post]
   )
 
-  const refresh = useCallback(
-    (refresh_token: string) =>
-      post("http://localhost:8000/api/v1/auth/refresh", { refresh_token }),
-    [post]
-  )
-
   const logoutApi = useCallback(
     () => post("http://localhost:8000/api/v1/auth/logout", {}),
     [post]
   )
 
-  return { apiFetch, get, post, put, del, register, loginApi, refresh, logoutApi }
+  return { apiFetch, get, post, put, patch, del, register, loginApi, logoutApi }
 } 

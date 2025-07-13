@@ -7,53 +7,58 @@ import { RealTimeVideoFilters } from "@/components/video/real-time-video-filters
 import { Button } from "@/components/ui/button"
 import { Upload } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useVideoApi } from "@/hooks"
+import { Loading } from "@/components/common/loading"
 
 export default function VideosPage() {
-  // Mock video data
-  const videos = [
-    {
-      id: "1",
-      title: "Championnat Régional Final - Épée",
-      thumbnail: "https://placehold.co/400x225?text=Video+1",
-      duration: "12:34",
-      views: 156,
-      comments: 8,
-      athlete: "Marie Dubois (16, Féminin)",
-      weapon: "épée",
-      competitionType: "Championnat Régional",
-      uploadedAt: "il y a 2 jours",
-      commentVisibility: "public",
-    },
-    {
-      id: "2",
-      title: "Circuit National Jeunes - Fleuret",
-      thumbnail: "https://placehold.co/400x225?text=Video+2",
-      duration: "8:45",
-      views: 89,
-      comments: 12,
-      athlete: "Jean Martin (14, Masculin)",
-      weapon: "fleuret",
-      competitionType: "Circuit Jeunes",
-      uploadedAt: "il y a 1 semaine",
-      commentVisibility: "private",
-    },
-    {
-      id: "3",
-      title: "Tournoi de Club - Sabre",
-      thumbnail: "https://placehold.co/400x225?text=Video+3",
-      duration: "15:22",
-      views: 234,
-      comments: 15,
-      athlete: "Sophie Laurent (17, Féminin)",
-      weapon: "sabre",
-      competitionType: "Tournoi de Club",
-      uploadedAt: "il y a 3 jours",
-      commentVisibility: "public",
-    },
-  ]
+  const { getVideos } = useVideoApi()
+  const [videos, setVideos] = useState<any[]>([])
+  const [filteredVideos, setFilteredVideos] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const [filteredVideos, setFilteredVideos] = useState(videos)
+  // Load videos on component mount
+  useEffect(() => {
+    const loadVideos = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        
+        const response = await getVideos({ limit: 100 })
+        const videosData = response.videos || response || []
+        
+        // Transform API data to match VideoCard interface
+        const transformedVideos = videosData.map((video: any) => ({
+          id: video.id.toString(),
+          title: video.title || 'Sans titre',
+          thumbnail: video.thumbnail_path 
+            ? `http://localhost:8000/${video.thumbnail_path}` 
+            : "https://placehold.co/400x225?text=Video",
+          duration: video.duration ? formatDuration(video.duration) : "00:00",
+          views: video.view_count || 0,
+          comments: video.comment_count || 0,
+          athlete: getAthleteDisplayName(video),
+          weapon: video.weapon_type || "inconnu",
+          competitionType: video.competition_name || "Compétition",
+          uploadedAt: formatRelativeTime(video.created_at),
+          commentVisibility: "public",
+        }))
+        
+        setVideos(transformedVideos)
+        setFilteredVideos(transformedVideos)
+      } catch (err) {
+        console.error('Error loading videos:', err)
+        setError("Erreur lors du chargement des vidéos")
+        setVideos([])
+        setFilteredVideos([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadVideos()
+  }, [])
 
   const handleFiltersChange = (filters: any) => {
     console.log("Filters changed:", filters)
@@ -85,6 +90,58 @@ export default function VideosPage() {
     setFilteredVideos(filtered)
   }
 
+  // Helper function to format duration from seconds to MM:SS
+  const formatDuration = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60)
+    const remainingSeconds = Math.floor(seconds % 60)
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`
+  }
+
+  // Helper function to get athlete display name
+  const getAthleteDisplayName = (video: any): string => {
+    if (video.athleteRight_name && video.athleteLeft_name) {
+      if (video.athleteRight_id === video.athleteLeft_id) {
+        return video.athleteRight_name
+      } else {
+        return `${video.athleteRight_name} vs ${video.athleteLeft_name}`
+      }
+    } else if (video.athleteRight_name) {
+      return video.athleteRight_name
+    } else if (video.athleteLeft_name) {
+      return video.athleteLeft_name
+    } else {
+      return 'Athlète inconnu'
+    }
+  }
+
+  // Helper function to format relative time
+  const formatRelativeTime = (dateString: string): string => {
+    if (!dateString) return 'Date inconnue'
+    
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60))
+    
+    if (diffInHours < 1) return 'il y a moins d\'une heure'
+    if (diffInHours < 24) return `il y a ${diffInHours}h`
+    if (diffInHours < 48) return 'il y a 1 jour'
+    if (diffInHours < 168) return `il y a ${Math.floor(diffInHours / 24)} jours`
+    if (diffInHours < 336) return 'il y a 1 semaine'
+    return `il y a ${Math.floor(diffInHours / 168)} semaines`
+  }
+
+  if (loading) {
+    return (
+      <ProtectedRoute>
+        <Layout>
+          <div className="flex justify-center items-center py-12">
+            <Loading />
+          </div>
+        </Layout>
+      </ProtectedRoute>
+    )
+  }
+
   return (
     <ProtectedRoute>
       <Layout>
@@ -104,6 +161,12 @@ export default function VideosPage() {
             </Button>
           </div>
 
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+              {error}
+            </div>
+          )}
+
           <RealTimeVideoFilters onFiltersChange={handleFiltersChange} totalResults={filteredVideos.length} />
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -112,9 +175,11 @@ export default function VideosPage() {
             ))}
           </div>
 
-          {filteredVideos.length === 0 && (
+          {!loading && !error && filteredVideos.length === 0 && (
             <div className="text-center py-12">
-              <p className="text-muted-foreground">Aucune vidéo trouvée avec ces critères de recherche.</p>
+              <p className="text-muted-foreground">
+                {videos.length === 0 ? "Aucune vidéo disponible." : "Aucune vidéo trouvée avec ces critères de recherche."}
+              </p>
             </div>
           )}
         </div>

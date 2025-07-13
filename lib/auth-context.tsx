@@ -18,6 +18,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>
   logout: () => void
   isLoading: boolean
+  refreshAccessToken: () => Promise<boolean>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -38,14 +39,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Check if token is expired
         const now = Date.now() / 1000
         if (decoded.exp && decoded.exp < now) {
-          logout()
+          // Try to refresh the token using the cookie
+          refreshAccessToken().then((success) => {
+            if (!success) {
+              logout()
+            }
+          })
         } else {
           setUser(JSON.parse(savedUser))
           // Set up auto-logout when token expires
           if (decoded.exp) {
             const msUntilExpiry = (decoded.exp - now) * 1000
             logoutTimeout = setTimeout(() => {
-              logout()
+              refreshAccessToken().then((success) => {
+                if (!success) {
+                  logout()
+                }
+              })
             }, msUntilExpiry)
           }
         }
@@ -59,24 +69,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // Refresh token logic
+  // Refresh token logic - now uses cookies automatically
   const refreshAccessToken = async () => {
-    const refreshToken = localStorage.getItem("refresh_token")
-    if (!refreshToken) return false
     try {
       const response = await fetch("http://localhost:8000/api/v1/auth/refresh", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ refresh_token: refreshToken }),
+        // Include credentials to send cookies
+        credentials: "include",
       })
+      
       if (!response.ok) {
         logout()
         return false
       }
+      
       const data = await response.json()
       localStorage.setItem("access_token", data.access_token)
+      
       // Optionally update user info
       const decoded: any = jwtDecode(data.access_token)
       const userInfo: User = {
@@ -103,6 +115,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ email, password }),
+        // Include credentials to receive cookies
+        credentials: "include",
       })
 
       if (!response.ok) {
@@ -117,9 +131,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const data = await response.json()
-      // Save tokens
+      // Save only access token (refresh token is in cookie)
       localStorage.setItem("access_token", data.access_token)
-      localStorage.setItem("refresh_token", data.refresh_token)
 
       // Decode JWT to get user info
       const decoded: any = jwtDecode(data.access_token)
@@ -138,15 +151,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      // Call logout endpoint to clear refresh token cookie
+      await fetch("http://localhost:8000/api/v1/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      })
+    } catch (e) {
+      // Continue with logout even if API call fails
+      console.error("Logout API call failed:", e)
+    }
+    
     setUser(null)
     localStorage.removeItem("user")
     localStorage.removeItem("access_token")
-    localStorage.removeItem("refresh_token")
-    // Optionally, reload the page or redirect to login
+    // Note: refresh token is cleared by the server via cookie
   }
 
-  return <AuthContext.Provider value={{ user, login, logout, isLoading }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, login, logout, isLoading, refreshAccessToken }}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {

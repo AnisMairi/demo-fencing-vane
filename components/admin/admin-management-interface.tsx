@@ -1,6 +1,7 @@
 "use client"
 
 import { useUserApi } from "@/hooks/use-user-api"
+import { useCommentApi } from "@/hooks/use-comment-api"
 import { useToast } from "@/hooks/use-toast"
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,6 +10,9 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
 import {
   Users,
   Video,
@@ -26,6 +30,10 @@ import {
   User,
   Trophy,
   Sword,
+  RotateCcw,
+  Eye as EyeIcon,
+  Filter,
+  RefreshCw,
 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -90,6 +98,19 @@ export function AdminManagementInterface() {
   const [videoLoading, setVideoLoading] = useState(false)
   const [videoError, setVideoError] = useState<string | null>(null)
 
+
+
+  // Comments state
+  const [comments, setComments] = useState<any[]>([])
+  const [commentsLoading, setCommentsLoading] = useState(false)
+  const [commentsError, setCommentsError] = useState<string | null>(null)
+
+  // Filter states
+  const [userStatusFilter, setUserStatusFilter] = useState<string>("all")
+  const [userRoleFilter, setUserRoleFilter] = useState<string>("all")
+  const [videoStatusFilter, setVideoStatusFilter] = useState<string>("all")
+  const [commentStatusFilter, setCommentStatusFilter] = useState<string>("all")
+
   // Remove mock users array
   // const users: User[] = [
   //   {
@@ -124,7 +145,8 @@ export function AdminManagementInterface() {
   //   },
   // ]
 
-  const { getUsers, updateUserStatus, getUser, updateMe } = useUserApi()
+  const { getUsersExcludingAdmins, updateUserStatus, getUser, updateUserProfileAdmin } = useUserApi()
+  const { getAllComments, updateCommentStatus } = useCommentApi()
   const { toast } = useToast()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -132,11 +154,43 @@ export function AdminManagementInterface() {
 
   useEffect(() => {
     setLoading(true)
-    getUsers()
+    getUsersExcludingAdmins()
       .then(setUsers)
       .catch(() => setError("Erreur lors du chargement des utilisateurs"))
       .finally(() => setLoading(false))
   }, [])
+
+
+
+  // Load comments when comments tab is selected
+  useEffect(() => {
+    if (selectedTab === "comments") {
+      setCommentsLoading(true)
+      setCommentsError(null)
+      
+      getAllComments()
+        .then((response) => {
+          console.log('Comments response:', response)
+          // Handle different possible response structures
+          if (response && Array.isArray(response.comments)) {
+            setComments(response.comments)
+          } else if (response && Array.isArray(response)) {
+            setComments(response)
+          } else if (response && response.data && Array.isArray(response.data)) {
+            setComments(response.data)
+          } else {
+            console.log('No comments found or unexpected response structure:', response)
+            setComments([])
+          }
+        })
+        .catch((error) => {
+          console.error('Error loading comments:', error)
+          setCommentsError("Erreur lors du chargement des commentaires")
+          setComments([])
+        })
+        .finally(() => setCommentsLoading(false))
+    }
+  }, [selectedTab])
 
   const activeUsersCount = users.filter(u => u.status === 'active').length;
   
@@ -155,7 +209,7 @@ export function AdminManagementInterface() {
 
   const handleSuspend = async (userId: string | number) => {
     try {
-      await updateUserStatus(String(userId), "suspended")
+      await updateUserStatus(Number(userId), "suspended")
       setUsers(users.map(u => u.id === userId ? { ...u, status: "suspended" } : u))
       toast({ title: "Utilisateur suspendu", description: "L'utilisateur a été suspendu." })
     } catch {
@@ -165,7 +219,7 @@ export function AdminManagementInterface() {
 
   const handleApprove = async (userId: string | number) => {
     try {
-      await updateUserStatus(String(userId), "active")
+      await updateUserStatus(Number(userId), "active")
       setUsers(users.map(u => u.id === userId ? { ...u, status: "active" } : u))
       toast({ title: "Utilisateur approuvé", description: "L'utilisateur a été approuvé." })
     } catch {
@@ -177,11 +231,14 @@ export function AdminManagementInterface() {
     setProfileLoading(true)
     setProfileError(null)
     setShowProfileModal(true)
+    
     try {
-      const user = await getUser(String(userId))
+      const user = await getUser(Number(userId))
       setSelectedUser(user)
-    } catch {
-      setProfileError("Erreur lors du chargement du profil utilisateur.")
+    } catch (error) {
+      console.error('Error fetching user:', error)
+      setProfileError("Impossible de charger le profil utilisateur")
+      toast({ title: "Erreur", description: "Impossible de charger le profil utilisateur.", variant: "destructive" })
     } finally {
       setProfileLoading(false)
     }
@@ -218,67 +275,92 @@ export function AdminManagementInterface() {
   const [loadingVideos, setLoadingVideos] = useState(true)
   const [errorVideos, setErrorVideos] = useState<string | null>(null)
 
+  // Load videos when videos tab is selected
   useEffect(() => {
-    setLoadingVideos(true)
-    getVideos()
-      .then((videosData) => {
-        // Transform API data to match our interface
-        const transformedVideos = videosData.map((video: any) => {
-          // Handle athlete names - show both if there are two different athletes, or just one
-          let athleteNames = '';
-          if (video.athleteRight_name && video.athleteLeft_name) {
-            // Check if both athletes exist and if they're the same person
-            if (video.athleteRight_id === video.athleteLeft_id) {
-              // Same athlete - show only once
+    if (selectedTab === "videos") {
+      setLoadingVideos(true)
+      setErrorVideos(null) // Clear any previous errors
+      
+      getVideos()
+        .then((response) => {
+          // Handle the VideoList response structure
+          const videosData = response.videos || response || []
+          
+          // Transform API data to match our interface
+          const transformedVideos = videosData.map((video: any) => {
+            // Handle athlete names - show both if there are two different athletes, or just one
+            let athleteNames = '';
+            if (video.athleteRight_name && video.athleteLeft_name) {
+              // Check if both athletes exist and if they're the same person
+              if (video.athleteRight_id === video.athleteLeft_id) {
+                // Same athlete - show only once
+                athleteNames = video.athleteRight_name;
+              } else {
+                // Different athletes - show both with Right/Left labels
+                athleteNames = `Droite: ${video.athleteRight_name}\nGauche: ${video.athleteLeft_name}`;
+              }
+            } else if (video.athleteRight_name) {
+              // Only right athlete
               athleteNames = video.athleteRight_name;
+            } else if (video.athleteLeft_name) {
+              // Only left athlete
+              athleteNames = video.athleteLeft_name;
             } else {
-              // Different athletes - show both with Right/Left labels
-              athleteNames = `Droite: ${video.athleteRight_name}\nGauche: ${video.athleteLeft_name}`;
+              athleteNames = 'Athlète inconnu';
             }
-          } else if (video.athleteRight_name) {
-            // Only right athlete
-            athleteNames = video.athleteRight_name;
-          } else if (video.athleteLeft_name) {
-            // Only left athlete
-            athleteNames = video.athleteLeft_name;
-          } else {
-            athleteNames = 'Athlète inconnu';
-          }
 
-          return {
-            id: video.id.toString(),
-            title: video.title || 'Sans titre',
-            athlete: athleteNames,
-            uploader: video.uploader_name || video.uploader?.name || video.uploader?.email || 'Utilisateur inconnu',
-            uploadDate: video.created_at || video.upload_date || '',
-            status: video.status?.toLowerCase() || 'pending',
-            views: video.view_count || 0,
-            comments: video.comment_count || 0,
-            reports: video.report_count || 0,
-            // Store raw data for actions
-            rawVideo: video,
-          }
+            return {
+              id: video.id.toString(),
+              title: video.title || 'Sans titre',
+              athlete: athleteNames,
+              uploader: video.uploader_name || video.uploader?.name || video.uploader?.email || 'Utilisateur inconnu',
+              uploadDate: video.created_at || video.upload_date || '',
+              status: video.status?.toLowerCase() || 'pending',
+              views: video.view_count || 0,
+              comments: video.comment_count || 0,
+              reports: video.report_count || 0,
+              // Store raw data for actions
+              rawVideo: video,
+            }
+          })
+          setVideos(transformedVideos)
         })
-        setVideos(transformedVideos)
-      })
-      .catch(() => setErrorVideos("Erreur lors du chargement des vidéos"))
-      .finally(() => setLoadingVideos(false))
-  }, [])
+        .catch((error) => {
+          console.error('Error loading videos:', error)
+          // Don't set error message for empty results, let the UI handle it
+          setVideos([])
+        })
+        .finally(() => setLoadingVideos(false))
+    }
+  }, [selectedTab])
 
-  // Calculate video statistics
+  // Calculate video statistics (excluding removed videos)
   const publishedVideosCount = videos.filter(v => v.status === 'published').length;
   const flaggedVideosCount = videos.filter(v => v.status === 'flagged').length;
-  const totalViews = videos.reduce((sum, v) => sum + v.views, 0);
+  const totalViews = videos.filter(v => v.status !== 'removed').reduce((sum, v) => sum + v.views, 0);
   
-  // Calculate videos uploaded this month
+
+  
+  // Calculate videos uploaded this month (excluding removed videos)
   const videosUploadedThisMonth = videos.filter(video => {
-    if (!video.uploadDate) return false;
+    if (!video.uploadDate || video.status === 'removed') return false;
     const uploadDate = new Date(video.uploadDate);
     return uploadDate.getMonth() === currentMonth && uploadDate.getFullYear() === currentYear;
   }).length;
 
-  // Filter users based on search term
+  // Filter users based on search term and filters
   const filteredUsers = users.filter(user => {
+    // Apply status filter
+    if (userStatusFilter !== "all" && user.status !== userStatusFilter) {
+      return false;
+    }
+    
+    // Apply role filter
+    if (userRoleFilter !== "all" && user.role !== userRoleFilter) {
+      return false;
+    }
+    
+    // Apply search term
     if (!searchTerm) return true;
     const searchLower = searchTerm.toLowerCase();
     return (
@@ -289,8 +371,14 @@ export function AdminManagementInterface() {
     );
   });
 
-  // Filter videos based on search term
+  // Filter videos based on search term and filters
   const filteredVideos = videos.filter(video => {
+    // Apply status filter
+    if (videoStatusFilter !== "all" && video.status !== videoStatusFilter) {
+      return false;
+    }
+    
+    // Apply search term
     if (!searchTerm) return true;
     const searchLower = searchTerm.toLowerCase();
     return (
@@ -303,17 +391,17 @@ export function AdminManagementInterface() {
 
   const handleDeleteVideo = async (videoId: string) => {
     try {
-      await deleteVideo(videoId)
-      setVideos(videos.filter(v => v.id !== videoId))
-      toast({ title: "Vidéo supprimée", description: "La vidéo a été supprimée avec succès." })
+      await updateVideoStatus(Number(videoId), "removed")
+      setVideos(videos.map(v => v.id === videoId ? { ...v, status: "removed" } : v))
+      toast({ title: "Vidéo masquée", description: "La vidéo a été masquée avec succès." })
     } catch {
-      toast({ title: "Erreur", description: "Impossible de supprimer la vidéo.", variant: "destructive" })
+      toast({ title: "Erreur", description: "Impossible de masquer la vidéo.", variant: "destructive" })
     }
   }
 
   const handlePublishVideo = async (videoId: string) => {
     try {
-      await updateVideoStatus(videoId, "published")
+      await updateVideoStatus(Number(videoId), "published")
       setVideos(videos.map(v => v.id === videoId ? { ...v, status: "published" } : v))
       toast({ title: "Vidéo publiée", description: "La vidéo a été publiée." })
     } catch {
@@ -323,11 +411,21 @@ export function AdminManagementInterface() {
 
   const handleFlagVideo = async (videoId: string) => {
     try {
-      await updateVideoStatus(videoId, "flagged")
+      await updateVideoStatus(Number(videoId), "flagged")
       setVideos(videos.map(v => v.id === videoId ? { ...v, status: "flagged" } : v))
       toast({ title: "Vidéo signalée", description: "La vidéo a été signalée." })
     } catch {
       toast({ title: "Erreur", description: "Impossible de signaler la vidéo.", variant: "destructive" })
+    }
+  }
+
+  const handleRestoreVideo = async (videoId: string) => {
+    try {
+      await updateVideoStatus(Number(videoId), "published")
+      setVideos(videos.map(v => v.id === videoId ? { ...v, status: "published" } : v))
+      toast({ title: "Vidéo restaurée", description: "La vidéo a été restaurée et publiée." })
+    } catch {
+      toast({ title: "Erreur", description: "Impossible de restaurer la vidéo.", variant: "destructive" })
     }
   }
 
@@ -338,7 +436,7 @@ export function AdminManagementInterface() {
     
     try {
       // Get video details without incrementing view count (admin view)
-      const video = await getVideo(videoId)
+      const video = await getVideo(Number(videoId))
       console.log('Video details:', video)
       setSelectedVideo(video)
     } catch (error) {
@@ -357,26 +455,35 @@ export function AdminManagementInterface() {
     setVideoLoading(false)
   }
 
-  const comments: CommentItem[] = [
-    {
-      id: "1",
-      author: "Coach Martin",
-      content: "Excellente technique, continuez ainsi !",
-      videoTitle: "Championnat Régional Final",
-      timestamp: "il y a 2h",
-      status: "approved",
-      reports: 0,
-    },
-    {
-      id: "2",
-      author: "Utilisateur Anonyme",
-      content: "Commentaire inapproprié signalé par plusieurs utilisateurs",
-      videoTitle: "Entraînement Technique",
-      timestamp: "il y a 1h",
-      status: "flagged",
-      reports: 5,
-    },
-  ]
+
+
+  const handleApproveComment = async (commentId: string) => {
+    try {
+      await updateCommentStatus(Number(commentId), "approved")
+      setComments(comments.map(c => c.id === commentId ? { ...c, status: "approved" } : c))
+      toast({ title: "Commentaire approuvé", description: "Le commentaire a été approuvé." })
+    } catch {
+      toast({ title: "Erreur", description: "Impossible d'approuver le commentaire.", variant: "destructive" })
+    }
+  }
+
+  const handleDeleteComment = async (commentId: string) => {
+    try {
+      await updateCommentStatus(Number(commentId), "removed")
+      setComments(comments.map(c => c.id === commentId ? { ...c, status: "removed" } : c))
+      toast({ title: "Commentaire supprimé", description: "Le commentaire a été supprimé." })
+    } catch {
+      toast({ title: "Erreur", description: "Impossible de supprimer le commentaire.", variant: "destructive" })
+    }
+  }
+
+  // Filter comments based on status filter
+  const filteredComments = comments.filter(comment => {
+    if (commentStatusFilter !== "all" && comment.status !== commentStatusFilter) {
+      return false;
+    }
+    return true;
+  });
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -438,20 +545,20 @@ export function AdminManagementInterface() {
     if (!selectedUser) return
     setProfileLoading(true)
     try {
-      // Update user profile via API
-      await updateMe({
-        name: selectedUser.name || '',
-        phone: selectedUser.phone || '',
-        club_name: selectedUser.club_name || '',
-        bio: selectedUser.bio || '',
-        avatar_url: selectedUser.avatar_url || '',
+      // Update user profile via admin API
+      await updateUserProfileAdmin(Number(selectedUser.id), {
+        name: selectedUser.name || undefined,
+        phone: selectedUser.phone || undefined,
+        club_name: selectedUser.club_name || undefined,
+        bio: selectedUser.bio || undefined,
+        avatar_url: selectedUser.avatar_url || undefined,
       })
       // Refresh users list to update last activity
-      const updatedUsers = await getUsers()
+      const updatedUsers = await getUsersExcludingAdmins()
       setUsers(updatedUsers)
       toast({ title: "Profil mis à jour", description: "Les informations de l'utilisateur ont été sauvegardées." })
       setShowProfileModal(false)
-    } catch {
+    } catch (error) {
       setProfileError("Erreur lors de la sauvegarde du profil.")
     } finally {
       setProfileLoading(false)
@@ -459,7 +566,7 @@ export function AdminManagementInterface() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 p-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -473,7 +580,7 @@ export function AdminManagementInterface() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Utilisateurs Actifs</CardTitle>
@@ -494,16 +601,7 @@ export function AdminManagementInterface() {
             <p className="text-xs text-muted-foreground">{videosUploadedThisMonth} nouvelles ce mois</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Signalements</CardTitle>
-            <Flag className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{flaggedVideosCount}</div>
-            <p className="text-xs text-red-600">À traiter</p>
-          </CardContent>
-        </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Commentaires</CardTitle>
@@ -518,35 +616,143 @@ export function AdminManagementInterface() {
 
       {/* Management Tabs */}
       <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="users">Utilisateurs</TabsTrigger>
           <TabsTrigger value="videos">Vidéos</TabsTrigger>
           <TabsTrigger value="comments">Commentaires</TabsTrigger>
-          <TabsTrigger value="reports">Signalements</TabsTrigger>
         </TabsList>
 
-        {/* Search Bar */}
-        <div className="flex items-center gap-4 my-4">
+        {/* Enhanced Search Bar */}
+        <div className="flex items-center gap-4 mb-8 mt-6">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Rechercher utilisateurs, vidéos..."
+              placeholder="Rechercher utilisateurs, vidéos, commentaires..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-10"
+              className="pl-10 pr-10 h-10"
             />
             {searchTerm && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-muted"
                 onClick={() => setSearchTerm("")}
               >
-                ×
+                <X className="h-3 w-3" />
               </Button>
             )}
           </div>
+          {searchTerm && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSearchTerm("")}
+              className="h-10"
+            >
+              Effacer
+            </Button>
+          )}
         </div>
+
+        {/* Enhanced Filters */}
+        {(selectedTab === "users" || selectedTab === "videos" || selectedTab === "comments") && (
+          <div className="bg-muted/50 rounded-lg p-4 mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-muted-foreground">Filtres</span>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-4">
+              {selectedTab === "users" && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="user-status" className="text-sm font-medium">Statut:</Label>
+                    <Select value={userStatusFilter} onValueChange={setUserStatusFilter}>
+                      <SelectTrigger className="w-40 h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Tous les statuts</SelectItem>
+                        <SelectItem value="active">Actif</SelectItem>
+                        <SelectItem value="suspended">Suspendu</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="user-role" className="text-sm font-medium">Rôle:</Label>
+                    <Select value={userRoleFilter} onValueChange={setUserRoleFilter}>
+                      <SelectTrigger className="w-40 h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Tous les rôles</SelectItem>
+                        <SelectItem value="local_contact">Contact local</SelectItem>
+                        <SelectItem value="coach">Coach</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
+
+              {selectedTab === "videos" && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="video-status" className="text-sm font-medium">Statut:</Label>
+                    <Select value={videoStatusFilter} onValueChange={setVideoStatusFilter}>
+                      <SelectTrigger className="w-40 h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Tous les statuts</SelectItem>
+                        <SelectItem value="published">Publié</SelectItem>
+                        <SelectItem value="flagged">Signalé</SelectItem>
+                        <SelectItem value="removed">Masqué</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+
+                </>
+              )}
+
+              {selectedTab === "comments" && (
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="comment-status" className="text-sm font-medium">Statut:</Label>
+                  <Select value={commentStatusFilter} onValueChange={setCommentStatusFilter}>
+                    <SelectTrigger className="w-40 h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous les statuts</SelectItem>
+                      <SelectItem value="approved">Approuvé</SelectItem>
+                      <SelectItem value="pending">En attente</SelectItem>
+                      <SelectItem value="flagged">Signalé</SelectItem>
+                      <SelectItem value="removed">Supprimé</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setUserStatusFilter("all")
+                  setUserRoleFilter("all")
+                  setVideoStatusFilter("all")
+                  setCommentStatusFilter("all")
+                  setSearchTerm("")
+                }}
+                className="ml-auto"
+              >
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Réinitialiser
+              </Button>
+            </div>
+          </div>
+        )}
 
         <TabsContent value="users">
           <Card>
@@ -556,13 +762,13 @@ export function AdminManagementInterface() {
             <CardContent>
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Utilisateur</TableHead>
-                    <TableHead>Rôle</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead>Dernière Activité</TableHead>
-                    <TableHead>Vidéos</TableHead>
-                    <TableHead>Actions</TableHead>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="font-semibold">Utilisateur</TableHead>
+                    <TableHead className="font-semibold">Rôle</TableHead>
+                    <TableHead className="font-semibold">Statut</TableHead>
+                    <TableHead className="font-semibold">Dernière Activité</TableHead>
+                    <TableHead className="font-semibold">Vidéos</TableHead>
+                    <TableHead className="font-semibold">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -579,8 +785,8 @@ export function AdminManagementInterface() {
                       <TableCell colSpan={6}>Aucun utilisateur trouvé.</TableCell>
                     </TableRow>
                   ) : (
-                    filteredUsers.map((user) => (
-                    <TableRow key={user.id}>
+                                        filteredUsers.map((user) => (
+                      <TableRow key={user.id} className="hover:bg-muted/30 transition-colors">
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar className="h-8 w-8">
@@ -612,28 +818,36 @@ export function AdminManagementInterface() {
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted">
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleViewProfile(user.id)}>
-                              <Eye className="h-4 w-4 mr-2" />
-                              Voir Profil
-                            </DropdownMenuItem>
+                          <DropdownMenuContent align="end" className="w-48">
+                              <DropdownMenuItem 
+                                onClick={() => handleViewProfile(user.id)}
+                                className="cursor-pointer hover:bg-muted"
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                Voir Profil
+                              </DropdownMenuItem>
                               {user.status !== "active" && (
-                                <DropdownMenuItem onClick={() => handleApprove(user.id)}>
-                              <UserCheck className="h-4 w-4 mr-2" />
-                              Approuver
-                            </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => handleApprove(user.id)}
+                                  className="cursor-pointer hover:bg-muted"
+                                >
+                                  <UserCheck className="h-4 w-4 mr-2" />
+                                  Approuver
+                                </DropdownMenuItem>
                               )}
                               {user.status === "active" && (
-                                <DropdownMenuItem onClick={() => handleSuspend(user.id)}>
-                              <UserX className="h-4 w-4 mr-2" />
-                              Suspendre
-                            </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => handleSuspend(user.id)}
+                                  className="text-red-600 hover:text-red-700 cursor-pointer"
+                                >
+                                  <UserX className="h-4 w-4 mr-2" />
+                                  Suspendre
+                                </DropdownMenuItem>
                               )}
-
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -654,15 +868,15 @@ export function AdminManagementInterface() {
             <CardContent>
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Titre</TableHead>
-                    <TableHead>Athlète</TableHead>
-                    <TableHead>Téléchargé par</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead>Vues</TableHead>
-                    <TableHead>Signalements</TableHead>
-                    <TableHead>Actions</TableHead>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="font-semibold">Titre</TableHead>
+                    <TableHead className="font-semibold">Athlète</TableHead>
+                    <TableHead className="font-semibold">Téléchargé par</TableHead>
+                    <TableHead className="font-semibold">Date</TableHead>
+                    <TableHead className="font-semibold">Statut</TableHead>
+                    <TableHead className="font-semibold">Vues</TableHead>
+                    <TableHead className="font-semibold">Signalements</TableHead>
+                    <TableHead className="font-semibold">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -674,15 +888,19 @@ export function AdminManagementInterface() {
                     </TableRow>
                   ) : errorVideos ? (
                     <TableRow>
-                      <TableCell colSpan={8}>{errorVideos}</TableCell>
+                      <TableCell colSpan={8} className="text-center py-8 text-red-500">
+                        {errorVideos}
+                      </TableCell>
                     </TableRow>
                   ) : filteredVideos.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8}>Aucune vidéo trouvée.</TableCell>
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        {searchTerm ? "Aucune vidéo trouvée avec ces critères de recherche." : "Aucune vidéo disponible."}
+                      </TableCell>
                     </TableRow>
                   ) : (
                     filteredVideos.map((video) => (
-                    <TableRow key={video.id}>
+                    <TableRow key={video.id} className="hover:bg-muted/30 transition-colors">
                       <TableCell className="font-medium">{video.title}</TableCell>
                       <TableCell>
                         <div className="whitespace-pre-line text-sm">
@@ -699,7 +917,9 @@ export function AdminManagementInterface() {
                               ? "En attente"
                               : video.status === "flagged"
                                 ? "Signalé"
-                                : "Supprimé"}
+                                : video.status === "removed"
+                                  ? "Masqué"
+                                  : "Inconnu"}
                         </Badge>
                       </TableCell>
                       <TableCell>{video.views}</TableCell>
@@ -707,31 +927,46 @@ export function AdminManagementInterface() {
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted">
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleViewVideo(video.id)}>
-                              <Eye className="h-4 w-4 mr-2" />
-                              Voir Vidéo
-                            </DropdownMenuItem>
-                              {video.status !== "published" && (
-                                <DropdownMenuItem onClick={() => handlePublishVideo(video.id)}>
-                              <UserCheck className="h-4 w-4 mr-2" />
-                                  Publier
+                          <DropdownMenuContent align="end" className="w-48">
+                              <DropdownMenuItem 
+                                onClick={() => handleViewVideo(video.id)}
+                                className="cursor-pointer hover:bg-muted"
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                Voir Vidéo
+                              </DropdownMenuItem>
+                              {video.status === "removed" ? (
+                                <DropdownMenuItem 
+                                  className="text-green-600 hover:text-green-700 cursor-pointer" 
+                                  onClick={() => handleRestoreVideo(video.id)}
+                                >
+                                  <RotateCcw className="h-4 w-4 mr-2" />
+                                  Restaurer
                                 </DropdownMenuItem>
+                              ) : (
+                                <>
+                                  {video.status !== "published" && (
+                                    <DropdownMenuItem 
+                                      onClick={() => handlePublishVideo(video.id)}
+                                      className="cursor-pointer hover:bg-muted"
+                                    >
+                                      <UserCheck className="h-4 w-4 mr-2" />
+                                      Publier
+                                    </DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuItem 
+                                    className="text-red-600 hover:text-red-700 cursor-pointer" 
+                                    onClick={() => handleDeleteVideo(video.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Masquer
+                                  </DropdownMenuItem>
+                                </>
                               )}
-                              {video.status !== "flagged" && (
-                                <DropdownMenuItem onClick={() => handleFlagVideo(video.id)}>
-                                  <Flag className="h-4 w-4 mr-2" />
-                                  Signaler
-                            </DropdownMenuItem>
-                              )}
-                              <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteVideo(video.id)}>
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Supprimer
-                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -750,105 +985,94 @@ export function AdminManagementInterface() {
               <CardTitle>Modération des Commentaires</CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Auteur</TableHead>
-                    <TableHead>Commentaire</TableHead>
-                    <TableHead>Vidéo</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead>Signalements</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {comments.map((comment) => (
-                    <TableRow key={comment.id}>
-                      <TableCell>{comment.author}</TableCell>
-                      <TableCell className="max-w-xs truncate">{comment.content}</TableCell>
-                      <TableCell>{comment.videoTitle}</TableCell>
-                      <TableCell>
-                        <Badge className={getStatusColor(comment.status)}>
-                          {comment.status === "approved"
-                            ? "Approuvé"
-                            : comment.status === "pending"
-                              ? "En attente"
-                              : comment.status === "flagged"
-                                ? "Signalé"
-                                : "Supprimé"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {comment.reports > 0 && <Badge variant="destructive">{comment.reports}</Badge>}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
-                              <UserCheck className="h-4 w-4 mr-2" />
-                              Approuver
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="text-red-600">
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Supprimer
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
+              {commentsLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loading />
+                </div>
+              ) : commentsError ? (
+                <div className="text-center py-12">
+                  <p className="text-red-500">{commentsError}</p>
+                </div>
+              ) : filteredComments.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-muted-foreground">
+                    {comments.length === 0 ? "Aucun commentaire disponible." : "Aucun commentaire trouvé avec ces critères de filtrage."}
+                  </p>
+                  {commentsError && (
+                    <p className="text-red-500 mt-2">Erreur: {commentsError}</p>
+                  )}
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="font-semibold">Auteur</TableHead>
+                      <TableHead className="font-semibold">Commentaire</TableHead>
+                      <TableHead className="font-semibold">Vidéo</TableHead>
+                      <TableHead className="font-semibold">Statut</TableHead>
+                      <TableHead className="font-semibold">Signalements</TableHead>
+                      <TableHead className="font-semibold">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredComments.map((comment) => (
+                      <TableRow key={comment.id} className="hover:bg-muted/30 transition-colors">
+                        <TableCell>{comment.author_name || comment.author?.name || 'Utilisateur inconnu'}</TableCell>
+                        <TableCell className="max-w-xs truncate">{comment.content}</TableCell>
+                        <TableCell>{comment.video_title || 'Vidéo inconnue'}</TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(comment.status)}>
+                            {comment.status === "approved"
+                              ? "Approuvé"
+                              : comment.status === "pending"
+                                ? "En attente"
+                                : comment.status === "flagged"
+                                  ? "Signalé"
+                                  : "Supprimé"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {comment.report_count > 0 && <Badge variant="destructive">{comment.report_count}</Badge>}
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                              {comment.status !== "approved" && (
+                                <DropdownMenuItem 
+                                  onClick={() => handleApproveComment(comment.id)}
+                                  className="cursor-pointer hover:bg-muted"
+                                >
+                                  <UserCheck className="h-4 w-4 mr-2" />
+                                  Approuver
+                                </DropdownMenuItem>
+                              )}
+                              {comment.status !== "removed" && (
+                                <DropdownMenuItem 
+                                  onClick={() => handleDeleteComment(comment.id)} 
+                                  className="text-red-600 hover:text-red-700 cursor-pointer"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Supprimer
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="reports">
-          <Card>
-            <CardHeader>
-              <CardTitle>Signalements à Traiter</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="p-4 border rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium">Vidéo signalée: "Entraînement Technique Controversé"</h4>
-                      <p className="text-sm text-muted-foreground">3 signalements pour contenu inapproprié</p>
-                      <p className="text-xs text-muted-foreground">Signalé il y a 2h</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline">
-                        Examiner
-                      </Button>
-                      <Button size="sm">Traiter</Button>
-                    </div>
-                  </div>
-                </div>
-                <div className="p-4 border rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium">Commentaire signalé</h4>
-                      <p className="text-sm text-muted-foreground">5 signalements pour langage inapproprié</p>
-                      <p className="text-xs text-muted-foreground">Signalé il y a 1h</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline">
-                        Examiner
-                      </Button>
-                      <Button size="sm">Traiter</Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+
       </Tabs>
       <UserProfileModal
         open={showProfileModal}
@@ -861,6 +1085,8 @@ export function AdminManagementInterface() {
         onChange={(u) => setSelectedUser(u)}
         onSave={handleSaveProfile}
       />
+
+
 
       {/* Video Preview Modal */}
       <Dialog open={showVideoModal} onOpenChange={handleCloseVideoModal}>
@@ -1019,7 +1245,8 @@ export function AdminManagementInterface() {
                           {selectedVideo.status === "published" ? "Publié" : 
                            selectedVideo.status === "pending" ? "En attente" : 
                            selectedVideo.status === "flagged" ? "Signalé" : 
-                           "Supprimé"}
+                           selectedVideo.status === "removed" ? "Masqué" : 
+                           "Inconnu"}
                         </Badge>
                       </div>
                       <p><strong>Vues:</strong> {selectedVideo.view_count || 0}</p>
@@ -1029,39 +1256,7 @@ export function AdminManagementInterface() {
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="space-y-2">
-                    <h4 className="font-medium">Actions</h4>
-                    <div className="flex gap-2">
-                      {selectedVideo.status !== "published" && (
-                        <Button 
-                          size="sm" 
-                          onClick={() => handlePublishVideo(selectedVideo.id)}
-                        >
-                          <UserCheck className="h-4 w-4 mr-2" />
-                          Publier
-                        </Button>
-                      )}
-                      {selectedVideo.status !== "flagged" && (
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => handleFlagVideo(selectedVideo.id)}
-                        >
-                          <Flag className="h-4 w-4 mr-2" />
-                          Signaler
-                        </Button>
-                      )}
-                      <Button 
-                        size="sm" 
-                        variant="destructive"
-                        onClick={() => handleDeleteVideo(selectedVideo.id)}
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Supprimer
-                      </Button>
-                    </div>
-                  </div>
+
                 </div>
               </div>
             </div>
@@ -1071,3 +1266,4 @@ export function AdminManagementInterface() {
     </div>
   )
 }
+

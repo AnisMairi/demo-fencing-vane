@@ -5,7 +5,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { Badge } from "@/components/ui/badge"
-import { Play, Pause, Maximize, SkipForward, RotateCcw, User, Calendar, Sword, Trophy, Clock, Tag, MessageSquare } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Play, Pause, Maximize, SkipForward, RotateCcw, User, Calendar, Sword, Trophy, Clock, Tag, X } from "lucide-react"
 import Link from "next/link"
 
 interface VideoMetadata {
@@ -43,55 +44,27 @@ interface VideoMetadata {
   }
 }
 
-interface TimelineComment {
-  id: string
-  timestamp: number
-  content: string
-  author: {
-    name: string
-    avatar: string
-    role: "local_contact" | "coach" | "administrator"
-  }
-  createdAt: string
-  likes: number
-  replies: TimelineComment[]
-  isLiked?: boolean
-}
-
-interface TimelineTag {
-  id: string
-  timestamp: number
-  tag: string
-  author: {
-    name: string
-    avatar: string
-    role: "local_contact" | "coach" | "administrator"
-  }
-  createdAt: string
-}
-
-interface EnhancedVideoPlayerWithTimelineProps {
+interface EnhancedVideoPlayerProps {
   videoUrl: string
   metadata: VideoMetadata
-  timelineComments: TimelineComment[]
-  timelineTags: TimelineTag[]
   onTimeUpdate?: (currentTime: number) => void
-  onAddTimelineComment?: (comment: { content: string; timestamp: number }) => void
-  onAddTimelineTag?: (tag: { tag: string; timestamp: number }) => void
   onSeekToTime?: (time: number) => void
+  onAddTimeStamp?: (timeStamp: string) => void
+  onAddTag?: (tag: string) => void
+  videoRef?: React.RefObject<HTMLVideoElement | null>
 }
 
-export function EnhancedVideoPlayerWithTimeline({
+export function EnhancedVideoPlayer({
   videoUrl,
   metadata,
-  timelineComments,
-  timelineTags,
   onTimeUpdate,
-  onAddTimelineComment,
-  onAddTimelineTag,
   onSeekToTime,
-}: EnhancedVideoPlayerWithTimelineProps) {
-  const videoRef = useRef<HTMLVideoElement>(null)
+  onAddTimeStamp,
+  onAddTag,
+  videoRef: externalVideoRef,
+}: EnhancedVideoPlayerProps) {
+  const internalVideoRef = useRef<HTMLVideoElement>(null)
+  const videoRef = externalVideoRef || internalVideoRef
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
@@ -99,7 +72,11 @@ export function EnhancedVideoPlayerWithTimeline({
   const [isMuted, setIsMuted] = useState(false)
   const [playbackRate, setPlaybackRate] = useState(1)
   const [showControls, setShowControls] = useState(true)
-  const [showTimeline, setShowTimeline] = useState(true)
+  const [isSeeking, setIsSeeking] = useState(false)
+  
+  // Tag input state
+  const [showTagInput, setShowTagInput] = useState(false)
+  const [tagInputValue, setTagInputValue] = useState("")
 
   useEffect(() => {
     const video = videoRef.current
@@ -119,7 +96,15 @@ export function EnhancedVideoPlayerWithTimeline({
       video.removeEventListener("timeupdate", updateTime)
       video.removeEventListener("loadedmetadata", updateDuration)
     }
-  }, [onTimeUpdate])
+  }, [onTimeUpdate, videoRef])
+
+  // Add seeking effect when currentTime changes significantly
+  useEffect(() => {
+    if (isSeeking) {
+      const timer = setTimeout(() => setIsSeeking(false), 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [isSeeking])
 
   const togglePlay = () => {
     const video = videoRef.current
@@ -143,14 +128,32 @@ export function EnhancedVideoPlayerWithTimeline({
     onSeekToTime?.(newTime)
   }
 
-  const seekToTime = (time: number) => {
+  // Function to handle external seeking (from timestamps)
+  const handleExternalSeek = (time: number) => {
     const video = videoRef.current
     if (!video) return
 
     video.currentTime = time
     setCurrentTime(time)
+    setIsSeeking(true)
     onSeekToTime?.(time)
   }
+
+  // Listen for external seek requests
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+
+    const handleTimeUpdate = () => {
+      // If the time changed significantly and we're not manually seeking, it's an external seek
+      if (Math.abs(video.currentTime - currentTime) > 1) {
+        setIsSeeking(true)
+      }
+    }
+
+    video.addEventListener("timeupdate", handleTimeUpdate)
+    return () => video.removeEventListener("timeupdate", handleTimeUpdate)
+  }, [currentTime, videoRef])
 
   const formatTime = (time: number) => {
     const minutes = Math.floor(time / 60)
@@ -158,32 +161,29 @@ export function EnhancedVideoPlayerWithTimeline({
     return `${minutes}:${seconds.toString().padStart(2, "0")}`
   }
 
-  const getTimelineMarkers = () => {
-    const markers = []
-    
-    // Add comment markers
-    timelineComments.forEach(comment => {
-      markers.push({
-        type: 'comment',
-        time: comment.timestamp,
-        data: comment
-      })
-    })
-    
-    // Add tag markers
-    timelineTags.forEach(tag => {
-      markers.push({
-        type: 'tag',
-        time: tag.timestamp,
-        data: tag
-      })
-    })
-    
-    // Sort by timestamp
-    return markers.sort((a, b) => a.time - b.time)
+  const addTimeStamp = () => {
+    const formattedTime = formatTime(currentTime)
+    const timeStamp = `/time{${formattedTime}}`
+    onAddTimeStamp?.(timeStamp)
   }
 
-  const timelineMarkers = getTimelineMarkers()
+  const addTag = () => {
+    if (tagInputValue.trim()) {
+      const tag = `/tag{${tagInputValue.trim()}}`
+      onAddTag?.(tag)
+      setTagInputValue("")
+      setShowTagInput(false)
+    }
+  }
+
+  const handleTagInputKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      addTag()
+    } else if (e.key === 'Escape') {
+      setShowTagInput(false)
+      setTagInputValue("")
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -197,7 +197,9 @@ export function EnhancedVideoPlayerWithTimeline({
           <video
             ref={videoRef}
             src={videoUrl}
-            className="w-full aspect-video"
+            className={`w-full aspect-video transition-all duration-300 ${
+              isSeeking ? 'ring-4 ring-blue-400 ring-opacity-60' : ''
+            }`}
             onClick={togglePlay}
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
@@ -234,6 +236,28 @@ export function EnhancedVideoPlayerWithTimeline({
                 <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
                   <SkipForward className="h-4 w-4" />
                 </Button>
+                
+                {/* Add Time and Tag Buttons */}
+                <div className="flex items-center gap-1 ml-2">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={addTimeStamp}
+                    className="text-white hover:bg-white/20 text-xs px-2 py-1 h-7"
+                  >
+                    <Clock className="h-3 w-3 mr-1" />
+                    Add time
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setShowTagInput(true)}
+                    className="text-white hover:bg-white/20 text-xs px-2 py-1 h-7"
+                  >
+                    <Tag className="h-3 w-3 mr-1" />
+                    Add tag
+                  </Button>
+                </div>
               </div>
 
               <div className="flex items-center gap-2">
@@ -263,136 +287,41 @@ export function EnhancedVideoPlayerWithTimeline({
                 </Button>
               </div>
             </div>
+
+            {/* Tag Input */}
+            {showTagInput && (
+              <div className="mt-3 flex items-center gap-2">
+                <Input
+                  value={tagInputValue}
+                  onChange={(e) => setTagInputValue(e.target.value)}
+                  onKeyDown={handleTagInputKeyPress}
+                  placeholder="Enter tag text..."
+                  className="bg-white/10 border-white/20 text-white placeholder:text-white/60 text-sm"
+                  autoFocus
+                />
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={addTag}
+                  className="text-white hover:bg-white/20 text-xs px-2 py-1 h-8"
+                >
+                  Add
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => {
+                    setShowTagInput(false)
+                    setTagInputValue("")
+                  }}
+                  className="text-white hover:bg-white/20 text-xs px-2 py-1 h-8"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
           </div>
         </div>
-      </Card>
-
-      {/* Timeline Section */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Timeline des commentaires et tags
-            </h3>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowTimeline(!showTimeline)}
-            >
-              {showTimeline ? "Masquer" : "Afficher"}
-            </Button>
-          </div>
-
-          {showTimeline && (
-            <div className="space-y-4">
-              {/* Timeline Bar */}
-              <div className="relative h-8 bg-gray-200 rounded-lg overflow-hidden">
-                <div 
-                  className="absolute top-0 left-0 h-full bg-blue-500 transition-all duration-100"
-                  style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
-                />
-                
-                {/* Timeline Markers */}
-                {timelineMarkers.map((marker, index) => (
-                  <div
-                    key={`${marker.type}-${marker.data.id}`}
-                    className="absolute top-0 h-full cursor-pointer transition-all duration-200 hover:scale-110"
-                    style={{ 
-                      left: `${(marker.time / duration) * 100}%`,
-                      transform: 'translateX(-50%)'
-                    }}
-                    onClick={() => seekToTime(marker.time)}
-                  >
-                    <div className={`w-3 h-3 rounded-full border-2 border-white ${
-                      marker.type === 'comment' ? 'bg-green-500' : 'bg-orange-500'
-                    }`} />
-                    <div className="absolute bottom-full mb-1 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity whitespace-nowrap">
-                      {formatTime(marker.time)}
-                      {marker.type === 'comment' && (
-                        <div className="flex items-center gap-1 mt-1">
-                          <MessageSquare className="h-3 w-3" />
-                          {marker.data.content.substring(0, 30)}...
-                        </div>
-                      )}
-                      {marker.type === 'tag' && (
-                        <div className="flex items-center gap-1 mt-1">
-                          <Tag className="h-3 w-3" />
-                          {marker.data.tag}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Timeline Legend */}
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-green-500 rounded-full" />
-                  <span>Commentaires</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-orange-500 rounded-full" />
-                  <span>Tags</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-blue-500 rounded-full" />
-                  <span>Position actuelle</span>
-                </div>
-              </div>
-
-              {/* Timeline Comments List */}
-              <div className="space-y-3 max-h-64 overflow-y-auto">
-                {timelineMarkers.length === 0 ? (
-                  <div className="text-center py-4 text-muted-foreground">
-                    <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>Aucun commentaire ou tag temporel pour le moment</p>
-                  </div>
-                ) : (
-                  timelineMarkers.map((marker) => (
-                    <div
-                      key={`${marker.type}-${marker.data.id}`}
-                      className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
-                      onClick={() => seekToTime(marker.time)}
-                    >
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs ${
-                        marker.type === 'comment' ? 'bg-green-500' : 'bg-orange-500'
-                      }`}>
-                        {marker.type === 'comment' ? <MessageSquare className="h-4 w-4" /> : <Tag className="h-4 w-4" />}
-                      </div>
-                      
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-mono text-sm bg-muted px-2 py-1 rounded">
-                            {formatTime(marker.time)}
-                          </span>
-                          <span className="text-sm font-medium">{marker.data.author.name}</span>
-                          <Badge variant="outline" className="text-xs">
-                            {marker.data.author.role === "local_contact" ? "Contact Local" : 
-                             marker.data.author.role === "coach" ? "Entraîneur" : "Administrateur"}
-                          </Badge>
-                        </div>
-                        
-                        {marker.type === 'comment' && (
-                          <p className="text-sm text-muted-foreground line-clamp-2">
-                            {marker.data.content}
-                          </p>
-                        )}
-                        
-                        {marker.type === 'tag' && (
-                          <Badge variant="secondary" className="text-xs">
-                            {marker.data.tag}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-        </CardContent>
       </Card>
 
       {/* Video Metadata */}
@@ -460,8 +389,6 @@ export function EnhancedVideoPlayerWithTimeline({
                     <span>Téléchargé par {metadata.uploader.name}</span>
                   </div>
                 </div>
-
-                {/* Remove tags display section (Badge, etc.) */}
               </div>
             </CardContent>
           </Card>
