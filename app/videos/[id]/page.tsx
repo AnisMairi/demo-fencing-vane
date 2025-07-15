@@ -1,9 +1,12 @@
 "use client"
-import { useState, use, useRef } from "react"
+import { useState, use, useRef, useEffect, useCallback } from "react"
 import { ProtectedRoute } from "@/components/auth/protected-route"
 import { Layout } from "@/components/layout/layout"
 import { EnhancedVideoPlayer } from "@/components/video/enhanced-video-player-with-timeline"
 import { VideoComments } from "@/components/video/video-comments-with-timeline"
+import { useVideoApi } from "@/hooks"
+import { useCommentApi } from "@/hooks"
+import { Loading } from "@/components/common/loading"
 
 interface Comment {
   id: string
@@ -37,144 +40,182 @@ export default function VideoViewPage({ params }: { params: Promise<{ id: string
   const [currentTime, setCurrentTime] = useState(0)
   const [commentInput, setCommentInput] = useState("")
   const [pendingTags, setPendingTags] = useState<string[]>([])
+  const [videoData, setVideoData] = useState<any>(null)
+  const [comments, setComments] = useState<Comment[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Mock video data
-  const videoMetadata = {
-    id: id,
-    title: "Championnat Régional Final - Épée",
-    athleteRight: {
-      id: "1",
-      firstName: "Marie",
-      lastName: "Dubois",
-      age: 16,
-      gender: "féminin",
-      weapon: "épée",
-      club: "Cercle d'Escrime de Paris",
-      coach: "Master Laurent",
-      ranking: "#3 Regional U17",
-    },
-    athleteLeft: {
-      id: "2",
-      firstName: "Jean",
-      lastName: "Martin",
-      age: 17,
-      gender: "masculin",
-      weapon: "épée",
-      club: "Lyon Escrime Club",
-      coach: "Coach Bernard",
-      ranking: "#5 Regional U18",
-    },
-    competitionType: "Championnat Régional",
-    uploadedAt: "il y a 2 jours",
-    duration: "12:34",
-    views: 156,
-    uploader: {
-      name: "Marie Dubois",
-      role: "Contact Local",
-    },
-  }
+  const { getVideo } = useVideoApi()
+  const { getVideoComments, createComment } = useCommentApi()
 
-  // Mock global comments data
-  const [globalComments, setGlobalComments] = useState<Comment[]>([
-    {
-      id: "1",
-      author: {
-        name: "Coach Martin",
-        avatar: "https://placehold.co/64x64?text=CM",
-        role: "coach",
-      },
-      content:
-        "Excellent match entre ces deux jeunes athlètes. La technique et la stratégie sont au rendez-vous. Un bel exemple pour les autres étudiants. /time{2:15} /tag{technique} /tag{stratégie}",
-      timestamp: "il y a 2 heures",
-      likes: 12,
-      replies: [
-        {
-          id: "1-1",
-          author: {
-            name: "Marie Dubois",
-            avatar: "https://placehold.co/64x64?text=MD",
-            role: "local_contact",
-          },
-          content: "Merci coach ! J'ai travaillé dur pour ce match. /time{3:45} /tag{effort}",
-          timestamp: "il y a 1 heure",
-          likes: 3,
-          replies: [],
-        },
-      ],
-    },
-    {
-      id: "2",
-      author: {
-        name: "Master Laurent",
-        avatar: "https://placehold.co/64x64?text=ML",
-        role: "administrator",
-      },
-      content:
-        "Analyse générale : Ce match montre un excellent niveau technique. Les deux athlètes démontrent une maîtrise remarquable de leur arme. /time{1:30} /tag{niveau} /tag{maîtrise}",
-      timestamp: "il y a 1 jour",
-      likes: 8,
-      replies: [],
-    },
-    {
-      id: "3",
-      author: {
-        name: "Coach Bernard",
-        avatar: "https://placehold.co/64x64?text=CB",
-        role: "coach",
-      },
-      content:
-        "Moment clé à /time{4:20} - excellente parade et riposte. /tag{parade} /tag{riposte} /tag{moment-clé}",
-      timestamp: "il y a 3 heures",
-      likes: 5,
-      replies: [],
-    },
-  ])
-
-  const handleAddGlobalComment = (comment: { content: string }) => {
-    console.log("Adding global comment:", comment)
+  // Helper function to format relative time
+  const formatRelativeTime = useCallback((dateString: string): string => {
+    if (!dateString) return 'Date inconnue'
     
-    // Create new comment
-    const newComment: Comment = {
-      id: Date.now().toString(),
-      author: {
-        name: "Vous",
-        avatar: "https://placehold.co/64x64?text=You",
-        role: "local_contact",
-      },
-      content: comment.content,
-      timestamp: "À l'instant",
-      likes: 0,
-      replies: [],
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60))
+    
+    if (diffInHours < 1) return 'il y a moins d\'une heure'
+    if (diffInHours < 24) return `il y a ${diffInHours}h`
+    if (diffInHours < 48) return 'il y a 1 jour'
+    if (diffInHours < 168) return `il y a ${Math.floor(diffInHours / 24)} jours`
+    if (diffInHours < 336) return 'il y a 1 semaine'
+    return `il y a ${Math.floor(diffInHours / 168)} semaines`
+  }, [])
+
+  // Helper function to format duration from seconds to MM:SS
+  const formatDuration = useCallback((seconds: number): string => {
+    const minutes = Math.floor(seconds / 60)
+    const remainingSeconds = Math.floor(seconds % 60)
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`
+  }, [])
+
+  // Helper function to get athlete display name
+  const getAthleteDisplayName = useCallback((video: any): string => {
+    if (video.athleteRight_name && video.athleteLeft_name) {
+      if (video.athleteRight_id === video.athleteLeft_id) {
+        return video.athleteRight_name
+      } else {
+        return `${video.athleteRight_name} vs ${video.athleteLeft_name}`
+      }
+    } else if (video.athleteRight_name) {
+      return video.athleteRight_name
+    } else if (video.athleteLeft_name) {
+      return video.athleteLeft_name
+    } else {
+      return 'Athlète inconnu'
     }
-    
-    // Add to the beginning of the comments list
-    setGlobalComments(prev => [newComment, ...prev])
-  }
+  }, [])
 
+  // Load video data and comments
+  useEffect(() => {
+    const loadVideoData = async () => {
+      try {
+        setLoading(true)
+        setError(null)
 
+        // Fetch video data
+        const videoResponse = await getVideo(parseInt(id))
+        setVideoData(videoResponse)
 
-  const handleSeekToTime = (time: number) => {
+        // Fetch comments
+        const commentsResponse = await getVideoComments(parseInt(id), { limit: 50 })
+        const transformedComments = commentsResponse.comments.map((comment: any) => ({
+          id: comment.id.toString(),
+          author: {
+            name: comment.author_name || 'Utilisateur inconnu',
+            avatar: "https://placehold.co/64x64?text=" + (comment.author_name?.charAt(0) || 'U'),
+            role: "local_contact" as const,
+          },
+          content: comment.content,
+          timestamp: formatRelativeTime(comment.created_at),
+          likes: 0, // Backend doesn't have likes yet
+          replies: [], // Backend doesn't have replies yet
+        }))
+        setComments(transformedComments)
+
+      } catch (err) {
+        console.error('Error loading video data:', err)
+        setError("Erreur lors du chargement de la vidéo")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (id) {
+      loadVideoData()
+    }
+  }, [id, formatRelativeTime]) // Removed getVideo and getVideoComments from dependencies
+
+  // Transform video data for the player
+  const getVideoMetadata = useCallback(() => {
+    if (!videoData) return null
+
+    return {
+      id: videoData.id.toString(),
+      title: videoData.title || "Sans titre",
+      athleteRight: {
+        id: videoData.athleteRight_id?.toString() || "1",
+        firstName: videoData.athleteRight_name?.split(' ')[0] || "Athlète",
+        lastName: videoData.athleteRight_name?.split(' ').slice(1).join(' ') || "Droit",
+        age: 16,
+        gender: "masculin",
+        weapon: videoData.weapon_type || "épée",
+        club: "Club d'escrime",
+        coach: "Coach",
+        ranking: "#1",
+      },
+      athleteLeft: {
+        id: videoData.athleteLeft_id?.toString() || "2",
+        firstName: videoData.athleteLeft_name?.split(' ')[0] || "Athlète",
+        lastName: videoData.athleteLeft_name?.split(' ').slice(1).join(' ') || "Gauche",
+        age: 17,
+        gender: "masculin",
+        weapon: videoData.weapon_type || "épée",
+        club: "Club d'escrime",
+        coach: "Coach",
+        ranking: "#2",
+      },
+      competitionType: videoData.competition_name || "Compétition",
+      uploadedAt: formatRelativeTime(videoData.created_at),
+      duration: videoData.duration ? formatDuration(videoData.duration) : "00:00",
+      views: videoData.view_count || 0,
+      uploader: {
+        name: videoData.uploader_name || `Utilisateur #${videoData.uploader_id}` || "Utilisateur inconnu",
+        role: "Contact Local",
+      },
+    }
+  }, [videoData, formatRelativeTime, formatDuration])
+
+  const handleAddGlobalComment = useCallback(async (comment: { content: string }) => {
+    try {
+      // Create comment via API
+      const newComment = await createComment(parseInt(id), { content: comment.content })
+      
+      // Add to local state
+      const transformedComment: Comment = {
+        id: newComment.id.toString(),
+        author: {
+          name: newComment.author_name || 'Vous',
+          avatar: "https://placehold.co/64x64?text=" + (newComment.author_name?.charAt(0) || 'Y'),
+          role: "local_contact" as const,
+        },
+        content: newComment.content,
+        timestamp: "À l'instant",
+        likes: 0,
+        replies: [],
+      }
+      
+      setComments(prev => [transformedComment, ...prev])
+    } catch (err) {
+      console.error('Error creating comment:', err)
+      setError("Erreur lors de l'ajout du commentaire")
+    }
+  }, [id, createComment])
+
+  const handleSeekToTime = useCallback((time: number) => {
     console.log("Seeking to time:", time)
     if (videoRef.current) {
       videoRef.current.currentTime = time
     }
     setCurrentTime(time)
-  }
+  }, [])
 
-  const handleAddTimeStamp = (timeStamp: string) => {
+  const handleAddTimeStamp = useCallback((timeStamp: string) => {
     setCommentInput(prev => prev + timeStamp + " ")
-  }
+  }, [])
 
-  const handleAddTag = (tag: string) => {
+  const handleAddTag = useCallback((tag: string) => {
     // Extract the tag text from /tag{text} format
     const tagMatch = tag.match(/\/tag\{([^}]+)\}/)
     if (tagMatch) {
       const tagText = tagMatch[1]
       setPendingTags(prev => [...prev, tagText])
     }
-  }
+  }, [])
 
-  const handleSeekToTimeStamp = (timeString: string) => {
+  const handleSeekToTimeStamp = useCallback((timeString: string) => {
     // Parse time string like "1:23" to seconds
     const [minutes, seconds] = timeString.split(':').map(Number)
     const totalSeconds = minutes * 60 + seconds
@@ -196,24 +237,53 @@ export default function VideoViewPage({ params }: { params: Promise<{ id: string
     
     // Show a brief notification
     console.log(`🎬 Vidéo positionnée à ${timeString}`)
-  }
+  }, [handleSeekToTime])
 
-  const handleReportComment = (commentId: string) => {
+  const handleReportComment = useCallback((commentId: string) => {
     console.log("Reporting comment:", commentId)
+  }, [])
+
+  const handleDeleteComment = useCallback((commentId: string) => {
+    console.log("Deleting comment:", commentId)
+  }, [])
+
+  if (loading) {
+    return (
+      <ProtectedRoute>
+        <Layout>
+          <div className="flex justify-center items-center py-12">
+            <Loading />
+          </div>
+        </Layout>
+      </ProtectedRoute>
+    )
   }
 
-  const handleDeleteComment = (commentId: string) => {
-    console.log("Deleting comment:", commentId)
+  if (error || !videoData) {
+    return (
+      <ProtectedRoute>
+        <Layout>
+          <div className="max-w-6xl mx-auto space-y-6">
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+              {error || "Vidéo non trouvée"}
+            </div>
+          </div>
+        </Layout>
+      </ProtectedRoute>
+    )
   }
+
+  const videoMetadata = getVideoMetadata()
+  if (!videoMetadata) return null
 
   return (
     <ProtectedRoute>
       <Layout>
-        <div className="max-w-6xl mx-auto space-y-6">
+        <div className="space-y-6">
           <div ref={videoContainerRef} className="transition-all duration-500 ease-out">
             <EnhancedVideoPlayer
               videoRef={videoRef}
-              videoUrl="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+              videoUrl={`http://localhost:8000/${videoData.file_path}`}
               metadata={videoMetadata}
               onTimeUpdate={(time) => setCurrentTime(time)}
               onSeekToTime={handleSeekToTime}
@@ -224,7 +294,7 @@ export default function VideoViewPage({ params }: { params: Promise<{ id: string
 
           <VideoComments
             videoId={id}
-            comments={globalComments}
+            comments={comments}
             onAddComment={handleAddGlobalComment}
             onReportComment={handleReportComment}
             onDeleteComment={handleDeleteComment}

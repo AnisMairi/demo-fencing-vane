@@ -7,28 +7,43 @@ import { RealTimeVideoFilters } from "@/components/video/real-time-video-filters
 import { Button } from "@/components/ui/button"
 import { Upload } from "lucide-react"
 import Link from "next/link"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useVideoApi } from "@/hooks"
 import { Loading } from "@/components/common/loading"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export default function VideosPage() {
   const { getVideos } = useVideoApi()
+  const [allVideos, setAllVideos] = useState<any[]>([])
   const [videos, setVideos] = useState<any[]>([])
-  const [filteredVideos, setFilteredVideos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [perPage] = useState(16)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalResults, setTotalResults] = useState(0)
+  const [filters, setFilters] = useState<any>({})
 
-  // Load videos on component mount
+  // Memoize filters to avoid infinite loop
+  const stableFilters = useMemo(() => filters, [JSON.stringify(filters)])
+
   useEffect(() => {
     const loadVideos = async () => {
       try {
         setLoading(true)
         setError(null)
-        
-        const response = await getVideos({ limit: 100 })
-        const videosData = response.videos || response || []
-        
-        // Transform API data to match VideoCard interface
+        // Fetch all videos once
+        const response = await getVideos()
+        const videosData = response.videos || []
         const transformedVideos = videosData.map((video: any) => ({
           id: video.id.toString(),
           title: video.title || 'Sans titre',
@@ -39,55 +54,74 @@ export default function VideosPage() {
           views: video.view_count || 0,
           comments: video.comment_count || 0,
           athlete: getAthleteDisplayName(video),
-          weapon: video.weapon_type || "inconnu",
-          competitionType: video.competition_name || "Compétition",
+          uploader: video.uploader_name || `Utilisateur #${video.uploader_id}` || 'Utilisateur inconnu',
           uploadedAt: formatRelativeTime(video.created_at),
-          commentVisibility: "public",
+          competition_date: video.competition_date,
+          weapon_type: video.weapon_type,
         }))
-        
-        setVideos(transformedVideos)
-        setFilteredVideos(transformedVideos)
+        setAllVideos(transformedVideos)
       } catch (err) {
         console.error('Error loading videos:', err)
         setError("Erreur lors du chargement des vidéos")
-        setVideos([])
-        setFilteredVideos([])
+        setAllVideos([])
       } finally {
         setLoading(false)
       }
     }
-
     loadVideos()
   }, [])
 
-  const handleFiltersChange = (filters: any) => {
-    console.log("Filters changed:", filters)
-
-    let filtered = [...videos]
-
-    // Apply search filter
+  // Filter and paginate client-side
+  const filteredVideos = useMemo(() => {
+    let filtered = allVideos
+    // Search filter
     if (filters.search) {
-      const searchTerm = filters.search.toLowerCase()
-      filtered = filtered.filter(
-        (video) =>
-          video.title.toLowerCase().includes(searchTerm) ||
-          video.athlete.toLowerCase().includes(searchTerm),
+      const search = filters.search.toLowerCase()
+      filtered = filtered.filter(v =>
+        v.title.toLowerCase().includes(search) ||
+        (v.description && v.description.toLowerCase().includes(search)) ||
+        (v.athleteRight_name && v.athleteRight_name.toLowerCase().includes(search)) ||
+        (v.athleteLeft_name && v.athleteLeft_name.toLowerCase().includes(search)) ||
+        (v.uploader_name && v.uploader_name.toLowerCase().includes(search)) ||
+        (v.competition_name && v.competition_name.toLowerCase().includes(search))
       )
     }
-
-    // Apply weapon filter
-    if (filters.weapon && filters.weapon !== "allWeapons") {
-      filtered = filtered.filter((video) => video.weapon === filters.weapon)
+    // Status filter (if you want to filter published/removed/etc.)
+    if (filters.status && filters.status !== 'all') {
+      filtered = filtered.filter(v => v.status === filters.status)
     }
-
-    // Apply competition type filter
-    if (filters.competitionType && filters.competitionType !== "allCompetitions") {
-      filtered = filtered.filter((video) =>
-        video.competitionType.toLowerCase().includes(filters.competitionType.toLowerCase()),
-      )
+    // is_public filter (if you want to filter public/private)
+    if (filters.is_public !== undefined && filters.is_public !== 'all') {
+      filtered = filtered.filter(v => v.is_public === (filters.is_public === 'true'))
     }
+    // Weapon filter
+    if (filters.weapon && filters.weapon !== 'allWeapons') {
+      filtered = filtered.filter(v => v.weapon_type === filters.weapon)
+    }
+    // Year filter (based on competition_date)
+    if (filters.year && filters.year !== 'allYears') {
+      filtered = filtered.filter(v => {
+        if (!v.competition_date) return false
+        const year = new Date(v.competition_date).getFullYear().toString()
+        return year === filters.year
+      })
+    }
+    setTotalResults(filtered.length)
+    setTotalPages(Math.max(1, Math.ceil(filtered.length / perPage)))
+    return filtered.slice((page - 1) * perPage, page * perPage)
+  }, [allVideos, filters, page, perPage])
 
-    setFilteredVideos(filtered)
+  // Update videos when filteredVideos changes
+  useEffect(() => {
+    setVideos(filteredVideos)
+  }, [filteredVideos])
+
+  const handleFiltersChange = (newFilters: any) => {
+    // Only update filters if they actually changed
+    if (JSON.stringify(filters) !== JSON.stringify(newFilters)) {
+      setFilters(newFilters)
+      setPage(1)
+    }
   }
 
   // Helper function to format duration from seconds to MM:SS
@@ -130,7 +164,24 @@ export default function VideosPage() {
     return `il y a ${Math.floor(diffInHours / 168)} semaines`
   }
 
-  if (loading) {
+  // Helper to generate page numbers with ellipsis
+  const getPageNumbers = () => {
+    const pages = []
+    if (totalPages <= 5) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i)
+    } else {
+      if (page <= 3) {
+        pages.push(1, 2, 3, 4, 'ellipsis', totalPages)
+      } else if (page >= totalPages - 2) {
+        pages.push(1, 'ellipsis', totalPages - 3, totalPages - 2, totalPages - 1, totalPages)
+      } else {
+        pages.push(1, 'ellipsis', page - 1, page, page + 1, 'ellipsis', totalPages)
+      }
+    }
+    return pages
+  }
+
+  if (loading && (page === 1 && Object.keys(filters).length === 0)) {
     return (
       <ProtectedRoute>
         <Layout>
@@ -141,6 +192,9 @@ export default function VideosPage() {
       </ProtectedRoute>
     )
   }
+
+  // Show shimmer skeletons when loading (not initial load)
+  const showShimmer = loading && !(page === 1 && Object.keys(filters).length === 0)
 
   return (
     <ProtectedRoute>
@@ -167,15 +221,67 @@ export default function VideosPage() {
             </div>
           )}
 
-          <RealTimeVideoFilters onFiltersChange={handleFiltersChange} totalResults={filteredVideos.length} />
+          <RealTimeVideoFilters
+            filters={filters}
+            setFilters={setFilters}
+            onFiltersChange={handleFiltersChange}
+            totalResults={totalResults}
+          />
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filteredVideos.map((video) => (
-              <VideoCard key={video.id} video={video} />
-            ))}
+            {showShimmer
+              ? Array.from({ length: 8 }).map((_, i) => (
+                  <Skeleton key={i} className="h-[300px] w-full" />
+                ))
+              : videos.map((video) => (
+                  <VideoCard key={video.id} video={video} />
+                ))}
           </div>
 
-          {!loading && !error && filteredVideos.length === 0 && (
+          {/* Dynamic Pagination (shadcn) */}
+          <Pagination className="mt-8">
+            <PaginationContent>
+              {/* Only show Previous if not on first page */}
+              {page > 1 && (
+                <PaginationItem>
+                  <PaginationPrevious
+                    href="#"
+                    onClick={e => { e.preventDefault(); if (page > 1) setPage(page - 1) }}
+                    aria-disabled={page === 1}
+                  />
+                </PaginationItem>
+              )}
+              {getPageNumbers().map((p, idx) =>
+                p === 'ellipsis' ? (
+                  <PaginationItem key={`ellipsis-${idx}`}>
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                ) : (
+                  <PaginationItem key={p}>
+                    <PaginationLink
+                      href="#"
+                      isActive={page === p}
+                      onClick={e => { e.preventDefault(); setPage(Number(p)) }}
+                    >
+                      {p}
+                    </PaginationLink>
+                  </PaginationItem>
+                )
+              )}
+              {/* Only show Next if not on last page */}
+              {page < totalPages && (
+                <PaginationItem>
+                  <PaginationNext
+                    href="#"
+                    onClick={e => { e.preventDefault(); if (page < totalPages) setPage(page + 1) }}
+                    aria-disabled={page === totalPages}
+                  />
+                </PaginationItem>
+              )}
+            </PaginationContent>
+          </Pagination>
+
+          {!loading && !error && videos.length === 0 && (
             <div className="text-center py-12">
               <p className="text-muted-foreground">
                 {videos.length === 0 ? "Aucune vidéo disponible." : "Aucune vidéo trouvée avec ces critères de recherche."}

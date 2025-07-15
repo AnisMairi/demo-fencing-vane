@@ -55,10 +55,6 @@ interface AthleteProfile {
   joinDate: string
   ranking: string
   bio: string
-  parentalConsent: boolean
-  imageRightsConsent: boolean
-  gdprConsent: boolean
-  consentDate: string
   stats: {
     totalVideos: number
     totalViews: number
@@ -121,10 +117,6 @@ export function ComprehensiveAthleteProfile({ athleteId }: ComprehensiveAthleteP
     joinDate: "September 2020",
     ranking: "#3 Regional U17",
     bio: "Passionate épée fencer with 6 years of experience. Specializes in tactical play and precise timing. Current regional champion in the U17 category.",
-    parentalConsent: true,
-    imageRightsConsent: true,
-    gdprConsent: true,
-    consentDate: "2023-09-15",
     stats: {
       totalVideos: 24,
       totalViews: 3250,
@@ -212,7 +204,7 @@ export function ComprehensiveAthleteProfile({ athleteId }: ComprehensiveAthleteP
   ]
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
@@ -285,34 +277,6 @@ export function ComprehensiveAthleteProfile({ athleteId }: ComprehensiveAthleteP
                   <span className="truncate">{athlete.email}</span>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* GDPR Compliance Status */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Conformité RGPD</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Consentement parental</span>
-                <Badge variant={athlete.parentalConsent ? "default" : "destructive"}>
-                  {athlete.parentalConsent ? "✓" : "✗"}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Droits à l'image</span>
-                <Badge variant={athlete.imageRightsConsent ? "default" : "destructive"}>
-                  {athlete.imageRightsConsent ? "✓" : "✗"}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Consentement RGPD</span>
-                <Badge variant={athlete.gdprConsent ? "default" : "destructive"}>
-                  {athlete.gdprConsent ? "✓" : "✗"}
-                </Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">Consenti le {athlete.consentDate}</p>
             </CardContent>
           </Card>
 

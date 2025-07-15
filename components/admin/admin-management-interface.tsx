@@ -158,39 +158,61 @@ export function AdminManagementInterface() {
       .then(setUsers)
       .catch(() => setError("Erreur lors du chargement des utilisateurs"))
       .finally(() => setLoading(false))
-  }, [])
 
-
-
-  // Load comments when comments tab is selected
-  useEffect(() => {
-    if (selectedTab === "comments") {
-      setCommentsLoading(true)
-      setCommentsError(null)
-      
-      getAllComments()
-        .then((response) => {
-          console.log('Comments response:', response)
-          // Handle different possible response structures
-          if (response && Array.isArray(response.comments)) {
-            setComments(response.comments)
-          } else if (response && Array.isArray(response)) {
-            setComments(response)
-          } else if (response && response.data && Array.isArray(response.data)) {
-            setComments(response.data)
+    // Load videos immediately for stats
+    getVideos()
+      .then((response) => {
+        const videosData = response.videos || response || []
+        const transformedVideos = videosData.map((video: any) => {
+          let athleteNames = '';
+          if (video.athleteRight_name && video.athleteLeft_name) {
+            if (video.athleteRight_id === video.athleteLeft_id) {
+              athleteNames = video.athleteRight_name;
+            } else {
+              athleteNames = `Droite: ${video.athleteRight_name}\nGauche: ${video.athleteLeft_name}`;
+            }
+          } else if (video.athleteRight_name) {
+            athleteNames = video.athleteRight_name;
+          } else if (video.athleteLeft_name) {
+            athleteNames = video.athleteLeft_name;
           } else {
-            console.log('No comments found or unexpected response structure:', response)
-            setComments([])
+            athleteNames = 'Athlète inconnu';
+          }
+          return {
+            id: video.id.toString(),
+            title: video.title || 'Sans titre',
+            athlete: athleteNames,
+            uploader: video.uploader_name || video.uploader?.name || video.uploader?.email || 'Utilisateur inconnu',
+            uploadDate: video.created_at || video.upload_date || '',
+            status: video.status?.toLowerCase() || 'pending',
+            views: video.view_count || 0,
+            comments: video.comment_count || 0,
+            reports: video.report_count || 0,
+            rawVideo: video,
           }
         })
-        .catch((error) => {
-          console.error('Error loading comments:', error)
-          setCommentsError("Erreur lors du chargement des commentaires")
+        setVideos(transformedVideos)
+      })
+      .catch(() => setVideos([]))
+      .finally(() => setLoadingVideos(false))
+
+    // Load comments immediately for stats
+    getAllComments()
+      .then((response) => {
+        if (response && Array.isArray(response.comments)) {
+          setComments(response.comments)
+        } else if (response && Array.isArray(response)) {
+          setComments(response)
+        } else if (response && response.data && Array.isArray(response.data)) {
+          setComments(response.data)
+        } else {
           setComments([])
-        })
-        .finally(() => setCommentsLoading(false))
-    }
-  }, [selectedTab])
+        }
+      })
+      .catch(() => setComments([]))
+      .finally(() => setCommentsLoading(false))
+  }, [])
+
 
   const activeUsersCount = users.filter(u => u.status === 'active').length;
   
@@ -608,8 +630,8 @@ export function AdminManagementInterface() {
             <MessageSquare className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">2,456</div>
-            <p className="text-xs text-muted-foreground">+15% ce mois</p>
+            <div className="text-2xl font-bold">{comments.length}</div>
+            <p className="text-xs text-muted-foreground">{comments.length > 0 ? `+${comments.length} ce mois` : 'Aucun commentaire ce mois'}</p>
           </CardContent>
         </Card>
       </div>
@@ -727,7 +749,6 @@ export function AdminManagementInterface() {
                     <SelectContent>
                       <SelectItem value="all">Tous les statuts</SelectItem>
                       <SelectItem value="approved">Approuvé</SelectItem>
-                      <SelectItem value="pending">En attente</SelectItem>
                       <SelectItem value="flagged">Signalé</SelectItem>
                       <SelectItem value="removed">Supprimé</SelectItem>
                     </SelectContent>
@@ -1024,11 +1045,13 @@ export function AdminManagementInterface() {
                           <Badge className={getStatusColor(comment.status)}>
                             {comment.status === "approved"
                               ? "Approuvé"
-                              : comment.status === "pending"
-                                ? "En attente"
-                                : comment.status === "flagged"
-                                  ? "Signalé"
-                                  : "Supprimé"}
+                              : comment.status === "flagged"
+                                ? "Signalé"
+                                : comment.status === "removed"
+                                  ? "Supprimé"
+                                  : comment.status === "published"
+                                    ? "Publié"
+                                    : "Inconnu"}
                           </Badge>
                         </TableCell>
                         <TableCell>

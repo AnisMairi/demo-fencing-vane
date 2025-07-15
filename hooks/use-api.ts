@@ -32,7 +32,11 @@ export function useApi() {
       const headers = {
         ...(options.headers || {}),
         Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
+      } as Record<string, string>
+      
+      // Only set Content-Type for JSON requests, not for FormData
+      if (!(options.body instanceof FormData)) {
+        headers["Content-Type"] = "application/json"
       }
       
       const response = await fetch(url, { 

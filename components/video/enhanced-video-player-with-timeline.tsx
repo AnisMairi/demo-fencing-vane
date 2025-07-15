@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Play, Pause, Maximize, SkipForward, RotateCcw, User, Calendar, Sword, Trophy, Clock, Tag, X } from "lucide-react"
+import { Play, Pause, Maximize, SkipForward, RotateCcw, User, Calendar, Sword, Trophy, Clock, Tag, X, Volume2, VolumeX } from "lucide-react"
 import Link from "next/link"
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 
 interface VideoMetadata {
   id: string
@@ -54,6 +55,18 @@ interface EnhancedVideoPlayerProps {
   videoRef?: React.RefObject<HTMLVideoElement | null>
 }
 
+// Predefined tags for fencing
+const PREDEFINED_TAGS: string[] = [
+  "Attaque sur la préparation",
+  "Attaque composée",
+  "Attaque courte",
+  "Attaque longue",
+  "Parade riposte",
+  "Contre riposte",
+  "Contre attaque",
+  "Tomber dans le vide",
+];
+
 export function EnhancedVideoPlayer({
   videoUrl,
   metadata,
@@ -73,10 +86,48 @@ export function EnhancedVideoPlayer({
   const [playbackRate, setPlaybackRate] = useState(1)
   const [showControls, setShowControls] = useState(true)
   const [isSeeking, setIsSeeking] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   
   // Tag input state
   const [showTagInput, setShowTagInput] = useState(false)
-  const [tagInputValue, setTagInputValue] = useState("")
+  const [availableTags, setAvailableTags] = useState<string[]>([...PREDEFINED_TAGS])
+  const [selectedTag, setSelectedTag] = useState<string | undefined>(undefined)
+
+  // Auto-play when video loads
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+
+    const handleCanPlay = () => {
+      // Auto-play the video when it's ready
+      video.play().catch((error) => {
+        console.log("Auto-play prevented:", error)
+        // Auto-play might be blocked by browser, that's okay
+      })
+    }
+
+    video.addEventListener("canplay", handleCanPlay)
+    return () => video.removeEventListener("canplay", handleCanPlay)
+  }, [videoRef])
+
+  // Handle fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement)
+    }
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange)
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange)
+    document.addEventListener("mozfullscreenchange", handleFullscreenChange)
+    document.addEventListener("MSFullscreenChange", handleFullscreenChange)
+
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange)
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange)
+      document.removeEventListener("mozfullscreenchange", handleFullscreenChange)
+      document.removeEventListener("MSFullscreenChange", handleFullscreenChange)
+    }
+  }, [])
 
   useEffect(() => {
     const video = videoRef.current
@@ -106,6 +157,79 @@ export function EnhancedVideoPlayer({
     }
   }, [isSeeking])
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const video = videoRef.current
+      if (!video) return
+
+      // Prevent shortcuts when typing in input fields
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return
+      }
+
+      // Don't interfere with browser shortcuts (Ctrl, Alt, Meta keys)
+      if (e.ctrlKey || e.altKey || e.metaKey) {
+        return
+      }
+
+      switch (e.code) {
+        case "Space":
+          e.preventDefault()
+          togglePlay()
+          break
+        case "ArrowLeft":
+          e.preventDefault()
+          video.currentTime = Math.max(0, video.currentTime - 10)
+          break
+        case "ArrowRight":
+          e.preventDefault()
+          video.currentTime = Math.min(video.duration, video.currentTime + 10)
+          break
+        case "ArrowUp":
+          e.preventDefault()
+          setVolume(Math.min(1, volume + 0.1))
+          break
+        case "ArrowDown":
+          e.preventDefault()
+          setVolume(Math.max(0, volume - 0.1))
+          break
+        case "KeyM":
+          e.preventDefault()
+          toggleMute()
+          break
+        case "KeyF":
+          e.preventDefault()
+          toggleFullscreen()
+          break
+        case "KeyR":
+          e.preventDefault()
+          restart()
+          break
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown)
+    return () => document.removeEventListener("keydown", handleKeyDown)
+  }, [videoRef, volume])
+
+  // Update video playback rate when state changes
+  useEffect(() => {
+    const video = videoRef.current
+    if (video) {
+      video.playbackRate = playbackRate
+    }
+  }, [playbackRate, videoRef])
+
+  // Update video volume when state changes
+  useEffect(() => {
+    const video = videoRef.current
+    if (video) {
+      video.volume = volume
+      video.muted = isMuted
+    }
+  }, [volume, isMuted, videoRef])
+
   const togglePlay = () => {
     const video = videoRef.current
     if (!video) return
@@ -116,6 +240,44 @@ export function EnhancedVideoPlayer({
       video.play()
     }
     setIsPlaying(!isPlaying)
+  }
+
+  const restart = () => {
+    const video = videoRef.current
+    if (!video) return
+
+    video.currentTime = 0
+    setCurrentTime(0)
+    onSeekToTime?.(0)
+  }
+
+  const toggleMute = () => {
+    setIsMuted(!isMuted)
+  }
+
+  const toggleFullscreen = () => {
+    const video = videoRef.current
+    if (!video) return
+
+    if (!isFullscreen) {
+      if (video.requestFullscreen) {
+        video.requestFullscreen()
+      } else if ((video as any).webkitRequestFullscreen) {
+        (video as any).webkitRequestFullscreen()
+      } else if ((video as any).msRequestFullscreen) {
+        (video as any).msRequestFullscreen()
+      }
+      setIsFullscreen(true)
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen()
+      } else if ((document as any).webkitExitFullscreen) {
+        (document as any).webkitExitFullscreen()
+      } else if ((document as any).msExitFullscreen) {
+        (document as any).msExitFullscreen()
+      }
+      setIsFullscreen(false)
+    }
   }
 
   const handleSeek = (value: number[]) => {
@@ -167,21 +329,13 @@ export function EnhancedVideoPlayer({
     onAddTimeStamp?.(timeStamp)
   }
 
-  const addTag = () => {
-    if (tagInputValue.trim()) {
-      const tag = `/tag{${tagInputValue.trim()}}`
-      onAddTag?.(tag)
-      setTagInputValue("")
+  const addTag = (tag: string) => {
+    if (tag) {
+      const tagString = `/tag{${tag}}`
+      onAddTag?.(tagString)
+      setAvailableTags((prev: string[]) => prev.filter((t: string) => t !== tag))
+      setSelectedTag(undefined)
       setShowTagInput(false)
-    }
-  }
-
-  const handleTagInputKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      addTag()
-    } else if (e.key === 'Escape') {
-      setShowTagInput(false)
-      setTagInputValue("")
     }
   }
 
@@ -230,12 +384,34 @@ export function EnhancedVideoPlayer({
                 <Button variant="ghost" size="icon" onClick={togglePlay} className="text-white hover:bg-white/20">
                   {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                 </Button>
-                <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
+                <Button variant="ghost" size="icon" onClick={restart} className="text-white hover:bg-white/20" title="Restart (R)">
                   <RotateCcw className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
+                <Button variant="ghost" size="icon" onClick={() => {
+                  const video = videoRef.current
+                  if (video) {
+                    video.currentTime = Math.min(video.duration, video.currentTime + 10)
+                  }
+                }} className="text-white hover:bg-white/20" title="Skip 10s (→)">
                   <SkipForward className="h-4 w-4" />
                 </Button>
+                
+                {/* Volume Control */}
+                <div className="flex items-center gap-1 ml-2">
+                  <Button variant="ghost" size="icon" onClick={toggleMute} className="text-white hover:bg-white/20" title="Mute (M)">
+                    {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                  </Button>
+                  <Slider
+                    value={[isMuted ? 0 : volume * 100]}
+                    onValueChange={(value) => {
+                      setVolume(value[0] / 100)
+                      if (value[0] > 0) setIsMuted(false)
+                    }}
+                    max={100}
+                    step={1}
+                    className="w-20"
+                  />
+                </div>
                 
                 {/* Add Time and Tag Buttons */}
                 <div className="flex items-center gap-1 ml-2">
@@ -255,7 +431,7 @@ export function EnhancedVideoPlayer({
                     className="text-white hover:bg-white/20 text-xs px-2 py-1 h-7"
                   >
                     <Tag className="h-3 w-3 mr-1" />
-                    Add tag
+                    Ajouter un tag
                   </Button>
                 </div>
               </div>
@@ -282,37 +458,40 @@ export function EnhancedVideoPlayer({
                     2x
                   </option>
                 </select>
-                <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
+                <Button variant="ghost" size="icon" onClick={toggleFullscreen} className="text-white hover:bg-white/20" title="Fullscreen (F)">
                   <Maximize className="h-4 w-4" />
                 </Button>
               </div>
             </div>
 
-            {/* Tag Input */}
+            {/* Tag Combobox */}
             {showTagInput && (
               <div className="mt-3 flex items-center gap-2">
-                <Input
-                  value={tagInputValue}
-                  onChange={(e) => setTagInputValue(e.target.value)}
-                  onKeyDown={handleTagInputKeyPress}
-                  placeholder="Enter tag text..."
-                  className="bg-white/10 border-white/20 text-white placeholder:text-white/60 text-sm"
-                  autoFocus
-                />
+                <Select value={selectedTag} onValueChange={setSelectedTag}>
+                  <SelectTrigger className="w-[220px] bg-white/10 border-white/20 text-white">
+                    <SelectValue placeholder="Choisir un tag..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableTags.map(tag => (
+                      <SelectItem key={tag} value={tag}>{tag}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  onClick={addTag}
+                  onClick={() => selectedTag && addTag(selectedTag)}
                   className="text-white hover:bg-white/20 text-xs px-2 py-1 h-8"
+                  disabled={!selectedTag}
                 >
-                  Add
+                  Ajouter
                 </Button>
                 <Button 
                   variant="ghost" 
                   size="sm" 
                   onClick={() => {
                     setShowTagInput(false)
-                    setTagInputValue("")
+                    setSelectedTag(undefined)
                   }}
                   className="text-white hover:bg-white/20 text-xs px-2 py-1 h-8"
                 >

@@ -1,4 +1,5 @@
 import { useApi } from "./use-api"
+import { useCallback } from "react"
 
 // Types based on OpenAPI schema
 export interface Athlete {
@@ -126,13 +127,13 @@ export function useAthleteApi() {
   const { get, put, del, post, apiFetch } = useApi()
 
   // Create a new athlete
-  const createAthlete = async (data: AthleteCreate): Promise<Athlete> => {
+  const createAthlete = useCallback(async (data: AthleteCreate): Promise<Athlete> => {
     const response = await post("http://localhost:8000/api/v1/athletes/", data)
     return response.json()
-  }
+  }, [post])
 
   // Get all athletes with filtering
-  const getAthletes = async (filters?: AthleteFilters): Promise<AthleteList[]> => {
+  const getAthletes = useCallback(async (filters?: AthleteFilters): Promise<AthleteList[]> => {
     const params = new URLSearchParams()
     if (filters?.skip !== undefined) params.append("skip", filters.skip.toString())
     if (filters?.limit !== undefined) params.append("limit", filters.limit.toString())
@@ -147,38 +148,38 @@ export function useAthleteApi() {
     const url = `http://localhost:8000/api/v1/athletes/?${params.toString()}`
     const response = await get(url)
     return response.json()
-  }
+  }, [get])
 
   // Get athlete by ID
-  const getAthlete = async (athleteId: number): Promise<Athlete> => {
+  const getAthlete = useCallback(async (athleteId: number): Promise<Athlete> => {
     const response = await get(`http://localhost:8000/api/v1/athletes/${athleteId}`)
     return response.json()
-  }
+  }, [get])
 
   // Update athlete
-  const updateAthlete = async (athleteId: number, data: AthleteUpdate): Promise<Athlete> => {
+  const updateAthlete = useCallback(async (athleteId: number, data: AthleteUpdate): Promise<Athlete> => {
     const response = await put(`http://localhost:8000/api/v1/athletes/${athleteId}`, data)
     return response.json()
-  }
+  }, [put])
 
   // Delete athlete (admin only)
-  const deleteAthlete = async (athleteId: number): Promise<void> => {
+  const deleteAthlete = useCallback(async (athleteId: number): Promise<void> => {
     await del(`http://localhost:8000/api/v1/athletes/${athleteId}`)
-  }
+  }, [del])
 
   // Update athlete tutor
-  const updateAthleteTutor = async (athleteId: number, data: TutorUpdate): Promise<Athlete> => {
+  const updateAthleteTutor = useCallback(async (athleteId: number, data: TutorUpdate): Promise<Athlete> => {
     const response = await put(`http://localhost:8000/api/v1/athletes/${athleteId}/tutor`, data)
     return response.json()
-  }
+  }, [put])
 
   // Delete athlete tutor
-  const deleteAthleteTutor = async (athleteId: number): Promise<void> => {
+  const deleteAthleteTutor = useCallback(async (athleteId: number): Promise<void> => {
     await del(`http://localhost:8000/api/v1/athletes/${athleteId}/tutor`)
-  }
+  }, [del])
 
   // Upload athlete avatar
-  const uploadAthleteAvatar = async (athleteId: number, file: File): Promise<void> => {
+  const uploadAthleteAvatar = useCallback(async (athleteId: number, file: File): Promise<void> => {
     const formData = new FormData()
     formData.append("file", file)
     
@@ -187,13 +188,13 @@ export function useAthleteApi() {
       body: formData,
       // Don't set Content-Type, browser will set it for FormData
     })
-  }
+  }, [apiFetch])
 
   // Get athletes statistics summary
-  const getAthletesSummary = async (): Promise<any> => {
+  const getAthletesSummary = useCallback(async (): Promise<any> => {
     const response = await get("http://localhost:8000/api/v1/athletes/stats/summary")
     return response.json()
-  }
+  }, [get])
 
   return {
     createAthlete,

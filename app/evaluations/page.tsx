@@ -61,7 +61,6 @@ export default function EvaluationsPage() {
         // Get current user details
         const userData = await getMe()
         setCurrentUser(userData)
-        
         // Get all evaluations and filter by current evaluator
         const response = await getAllEvaluations({ evaluator_id: userData.id })
         setEvaluations(response.evaluations || [])
@@ -77,9 +76,8 @@ export default function EvaluationsPage() {
         setLoading(false)
       }
     }
-
     loadData()
-  }, [getMe, getAllEvaluations, toast]) // Add dependencies to prevent stale closure issues
+  }, []) // Only run once on mount
 
   const handleDeleteEvaluation = async (evaluationId: number) => {
     if (!confirm("Êtes-vous sûr de vouloir supprimer cette évaluation ?")) {

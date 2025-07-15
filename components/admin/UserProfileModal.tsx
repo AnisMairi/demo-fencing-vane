@@ -252,16 +252,6 @@ export function UserProfileModal({
                   </Badge>
                 </div>
                 <div>
-                  <p className="text-sm font-medium mb-1">Consentement RGPD:</p>
-                  <Badge variant={user.gdpr_consent ? 'default' : 'destructive'}>
-                    {user.gdpr_consent ? "Oui" : "Non"}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-sm font-medium mb-1">Date consentement RGPD:</p>
-                  <span>{formatDate(user.gdpr_consent_date)}</span>
-                </div>
-                <div>
                   <p className="text-sm font-medium mb-1">Créé le:</p>
                   <span>{formatDate(user.created_at)}</span>
                 </div>

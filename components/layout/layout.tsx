@@ -11,13 +11,13 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="w-full h-screen min-h-screen min-w-full bg-background flex flex-col">
       <Header />
-      <div className="flex h-[calc(100vh-3.5rem)]">
-        <aside className="relative w-64 border-r bg-background overflow-y-auto">
+      <div className="flex flex-1 min-h-0 min-w-0 h-full w-full">
+        <aside className="relative w-64 border-r bg-background overflow-y-auto h-full min-h-0">
           <Sidebar />
         </aside>
-        <main className="flex-1 p-6 overflow-y-auto">{children}</main>
+        <main className="flex-1 p-6 px-6 overflow-y-auto h-full min-h-0 min-w-0">{children}</main>
       </div>
     </div>
   )
