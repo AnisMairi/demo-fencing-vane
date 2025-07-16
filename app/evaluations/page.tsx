@@ -17,6 +17,8 @@ import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/lib/auth-context"
 import { useEvaluationApi, type Evaluation } from "@/hooks/use-evaluation-api"
 import { useUserApi } from "@/hooks/use-user-api"
+import { useAthleteApi } from "@/hooks/use-athlete-api"
+import { useVideoApi } from "@/hooks/use-video-api"
 import {
   Search,
   Filter,
@@ -41,6 +43,8 @@ export default function EvaluationsPage() {
   const { toast } = useToast()
   const { getAllEvaluations, deleteEvaluation } = useEvaluationApi()
   const { getMe } = useUserApi()
+  const { getAthlete } = useAthleteApi()
+  const { getVideo } = useVideoApi()
   
   const [evaluations, setEvaluations] = useState<Evaluation[]>([])
   const [loading, setLoading] = useState(true)
@@ -49,7 +53,7 @@ export default function EvaluationsPage() {
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [filters, setFilters] = useState({
     dateRange: "all", // all, week, month, quarter, year
-    scoreRange: "all", // all, excellent (80+), good (60-79), needs-improvement (0-59)
+    scoreRange: "all", // all, excellent (8+), good (6-7), needs-improvement (0-5)
     sortBy: "date", // date, score, athlete, video
     sortOrder: "desc" // asc, desc
   })
@@ -78,6 +82,36 @@ export default function EvaluationsPage() {
     }
     loadData()
   }, []) // Only run once on mount
+
+  // Fetch missing athlete and video names
+  useEffect(() => {
+    const fetchMissingNames = async () => {
+      const updatedEvaluations = await Promise.all(
+        evaluations.map(async (evaluation) => {
+          let athleteName = evaluation.athlete_name
+          let videoTitle = evaluation.video_title
+          if (!athleteName && evaluation.athlete_id) {
+            try {
+              const athlete = await getAthlete(evaluation.athlete_id)
+              athleteName = athlete.first_name + ' ' + athlete.last_name
+            } catch {}
+          }
+          if (!videoTitle && evaluation.video_id) {
+            try {
+              const video = await getVideo(evaluation.video_id)
+              videoTitle = video.title
+            } catch {}
+          }
+          return { ...evaluation, athlete_name: athleteName, video_title: videoTitle }
+        })
+      )
+      setEvaluations(updatedEvaluations)
+    }
+    // Only run if there are missing names
+    if (evaluations.some(e => !e.athlete_name || !e.video_title)) {
+      fetchMissingNames()
+    }
+  }, [evaluations, getAthlete, getVideo])
 
   const handleDeleteEvaluation = async (evaluationId: number) => {
     if (!confirm("Êtes-vous sûr de vouloir supprimer cette évaluation ?")) {
@@ -129,9 +163,9 @@ export default function EvaluationsPage() {
       const matchesScoreRange = (() => {
         const score = evaluation.overall_score || 0
         switch (filters.scoreRange) {
-          case "excellent": return score >= 80
-          case "good": return score >= 60 && score < 80
-          case "needs-improvement": return score < 60
+          case "excellent": return score >= 8
+          case "good": return score >= 6 && score < 8
+          case "needs-improvement": return score < 6
           default: return true
         }
       })()
@@ -169,17 +203,17 @@ export default function EvaluationsPage() {
   }
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return "text-green-600"
-    if (score >= 60) return "text-yellow-600"
+    if (score >= 8) return "text-green-600"
+    if (score >= 6) return "text-yellow-600"
     return "text-red-600"
   }
 
   const getScoreLabel = (score: number) => {
-    if (score >= 90) return "Excellent"
-    if (score >= 80) return "Très Bien"
-    if (score >= 70) return "Bien"
-    if (score >= 60) return "Satisfaisant"
-    if (score >= 50) return "Moyen"
+    if (score >= 9) return "Excellent"
+    if (score >= 8) return "Très Bien"
+    if (score >= 7) return "Bien"
+    if (score >= 6) return "Satisfaisant"
+    if (score >= 5) return "Moyen"
     return "À Améliorer"
   }
 
@@ -230,12 +264,6 @@ export default function EvaluationsPage() {
                 Gérez et consultez toutes vos évaluations d'athlètes
               </p>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline">
-                <BarChart3 className="h-4 w-4 mr-2" />
-                Statistiques
-              </Button>
-            </div>
           </div>
 
           {/* Stats Cards */}
@@ -260,7 +288,7 @@ export default function EvaluationsPage() {
               <CardContent>
                 <div className="text-2xl font-bold">{calculateAverageScore()}</div>
                 <p className="text-xs text-muted-foreground">
-                  sur 100 points
+                  sur 10 points
                 </p>
               </CardContent>
             </Card>
@@ -285,10 +313,10 @@ export default function EvaluationsPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {evaluations.filter(e => (e.overall_score || 0) >= 80).length}
+                  {evaluations.filter(e => (e.overall_score || 0) >= 8).length}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  ≥ 80/100
+                  ≥ 8/10
                 </p>
               </CardContent>
             </Card>
@@ -309,10 +337,6 @@ export default function EvaluationsPage() {
                       className="pl-10"
                     />
                   </div>
-                  <Button variant="outline" size="sm">
-                    <Filter className="h-4 w-4 mr-2" />
-                    Filtres avancés
-                  </Button>
                 </div>
 
                 {/* Filter Controls */}
@@ -349,9 +373,9 @@ export default function EvaluationsPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">Toutes les notes</SelectItem>
-                        <SelectItem value="excellent">Excellent (80+)</SelectItem>
-                        <SelectItem value="good">Bon (60-79)</SelectItem>
-                        <SelectItem value="needs-improvement">À améliorer (0-59)</SelectItem>
+                        <SelectItem value="excellent">Excellent (8+)</SelectItem>
+                        <SelectItem value="good">Bon (6-7)</SelectItem>
+                        <SelectItem value="needs-improvement">À améliorer (0-5)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -407,9 +431,9 @@ export default function EvaluationsPage() {
                     )}
                     {filters.scoreRange !== "all" && (
                       <Badge variant="secondary" className="text-xs">
-                        {filters.scoreRange === "excellent" ? "Excellent (80+)" :
-                         filters.scoreRange === "good" ? "Bon (60-79)" :
-                         "À améliorer (0-59)"}
+                        {filters.scoreRange === "excellent" ? "Excellent (8+)" :
+                         filters.scoreRange === "good" ? "Bon (6-7)" :
+                         "À améliorer (0-5)"}
                       </Badge>
                     )}
                     <Button 
@@ -465,15 +489,13 @@ export default function EvaluationsPage() {
                               <AvatarFallback>{evaluation.athlete_name?.charAt(0) ?? "A"}</AvatarFallback>
                             </Avatar>
                             <div>
-                              <p className="font-medium">{evaluation.athlete_name || "Athlète inconnu"}</p>
-                              <p className="text-sm text-muted-foreground">ID: {evaluation.athlete_id}</p>
+                              <p className="font-medium">{(evaluation as any).athlete_name || "Athlète inconnu"}</p>
                             </div>
                           </div>
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="font-medium">{evaluation.video_title || "Vidéo sans titre"}</p>
-                            <p className="text-sm text-muted-foreground">ID: {evaluation.video_id}</p>
+                            <p className="font-medium">{(evaluation as any).video_title || "Vidéo sans titre"}</p>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -481,7 +503,7 @@ export default function EvaluationsPage() {
                             <span className={`text-lg font-bold ${getScoreColor(evaluation.overall_score || 0)}`}>
                               {evaluation.overall_score || "N/A"}
                             </span>
-                            <Badge variant={evaluation.overall_score && evaluation.overall_score >= 80 ? "default" : "secondary"}>
+                            <Badge variant={evaluation.overall_score && evaluation.overall_score >= 8 ? "default" : "secondary"}>
                               {evaluation.overall_score ? getScoreLabel(evaluation.overall_score) : "N/A"}
                             </Badge>
                           </div>
@@ -491,14 +513,14 @@ export default function EvaluationsPage() {
                             {evaluation.technique_score && (
                               <div className="flex items-center gap-2">
                                 <span className="text-xs w-16">Technique:</span>
-                                <Progress value={evaluation.technique_score} className="h-2 flex-1" />
+                                <Progress value={evaluation.technique_score * 10} className="h-2 flex-1" />
                                 <span className="text-xs w-8">{evaluation.technique_score}</span>
                               </div>
                             )}
                             {evaluation.tactics_score && (
                               <div className="flex items-center gap-2">
                                 <span className="text-xs w-16">Tactique:</span>
-                                <Progress value={evaluation.tactics_score} className="h-2 flex-1" />
+                                <Progress value={evaluation.tactics_score * 10} className="h-2 flex-1" />
                                 <span className="text-xs w-8">{evaluation.tactics_score}</span>
                               </div>
                             )}
@@ -559,7 +581,7 @@ export default function EvaluationsPage() {
                         <Badge variant="outline">#{index + 1}</Badge>
                       </div>
                       <div className="text-2xl font-bold text-green-600">
-                        {evaluation.overall_score}/100
+                        {evaluation.overall_score}/10
                       </div>
                       <p className="text-sm text-muted-foreground">
                         {evaluation.video_title}

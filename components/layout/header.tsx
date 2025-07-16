@@ -20,11 +20,16 @@ export function Header() {
   const { setTheme, theme } = useTheme()
 
   return (
-    <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6">
+    <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6 py-2">
       <div className="flex h-14 items-center w-full">
         <div className="mr-4 hidden md:flex">
           <Link href="/dashboard" className="mr-6 flex items-center space-x-2">
-            <span className="hidden font-bold sm:inline-block">Youth Fencing Platform</span>
+            <img
+              src={theme === "dark" ? "/logo_white.svg" : "/logo_blue.svg"}
+              alt="Logo"
+              className="h-8 w-8"
+              style={{ width: "150px", height: "auto" }}
+            />
           </Link>
         </div>
 

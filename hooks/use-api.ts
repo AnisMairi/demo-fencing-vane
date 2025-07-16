@@ -50,6 +50,13 @@ export function useApi() {
         logout()
         throw new Error("Unauthorized. Please log in again.")
       }
+      
+      // Handle other HTTP errors
+      if (!response.ok) {
+        const errorMessage = `HTTP ${response.status}: ${response.statusText}`
+        throw new Error(errorMessage)
+      }
+      
       return response
     },
     [logout, refreshAccessToken]

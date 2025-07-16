@@ -3,14 +3,17 @@ import { useApi } from "./use-api"
 // Types based on OpenAPI schema
 export interface Evaluation {
   id: number
+  video_id: number
   athlete_id: number
   evaluator_id: number
-  video_id: number
-  technique_score?: number
-  tactics_score?: number
+  technique_score: number
+  tactics_score: number
+  speed_score?: number
   physical_score?: number
+  mental_strength_score?: number
   mental_score?: number
-  overall_score?: number
+  overall_score: number
+  comments: string
   strengths?: string
   areas_for_improvement?: string
   specific_feedback?: string
@@ -19,7 +22,6 @@ export interface Evaluation {
   updated_at?: string
   evaluator_name?: string
   athlete_name?: string
-  video_title?: string
 }
 
 export interface EvaluationList {
@@ -32,10 +34,14 @@ export interface EvaluationList {
 
 export interface EvaluationCreate {
   athlete_id: number
-  technique_score?: number
-  tactics_score?: number
+  technique_score: number
+  tactics_score: number
+  speed_score?: number
   physical_score?: number
+  mental_strength_score?: number
   mental_score?: number
+  overall_score: number
+  comments: string
   strengths?: string
   areas_for_improvement?: string
   specific_feedback?: string
@@ -45,8 +51,12 @@ export interface EvaluationCreate {
 export interface EvaluationUpdate {
   technique_score?: number
   tactics_score?: number
+  speed_score?: number
   physical_score?: number
+  mental_strength_score?: number
   mental_score?: number
+  overall_score?: number
+  comments?: string
   strengths?: string
   areas_for_improvement?: string
   specific_feedback?: string
@@ -54,78 +64,83 @@ export interface EvaluationUpdate {
 }
 
 export interface EvaluationFilters {
-  athlete_id?: number
   skip?: number
   limit?: number
+  athlete_id?: number
+  evaluator_id?: number
+  min_score?: number
+  max_score?: number
 }
 
-export interface AdminEvaluationFilters {
-  skip?: number
-  limit?: number
-  evaluator_id?: number
-  athlete_id?: number
+export interface AdminEvaluationFilters extends EvaluationFilters {
   video_id?: number
+  status?: "pending" | "approved" | "flagged"
 }
 
 export function useEvaluationApi() {
-  const { get, put, del, post } = useApi()
+  const { get, post, put, del } = useApi()
 
-  // Create a new evaluation for an athlete on a video
-  const createEvaluation = async (videoId: number, data: EvaluationCreate): Promise<Evaluation> => {
-    const response = await post(`http://localhost:8000/api/v1/videos/${videoId}/evaluations`, data)
+  const createEvaluation = async (videoId: number, evaluationData: EvaluationCreate): Promise<Evaluation> => {
+    const response = await post(`http://localhost:8000/api/v1/videos/${videoId}/evaluations`, evaluationData)
     return response.json()
   }
 
-  // Get evaluations for a video
-  const getVideoEvaluations = async (videoId: number, filters?: EvaluationFilters): Promise<EvaluationList> => {
-    const params = new URLSearchParams()
-    if (filters?.athlete_id !== undefined) params.append("athlete_id", filters.athlete_id.toString())
-    if (filters?.skip !== undefined) params.append("skip", filters.skip.toString())
-    if (filters?.limit !== undefined) params.append("limit", filters.limit.toString())
-
-    const url = `http://localhost:8000/api/v1/videos/${videoId}/evaluations?${params.toString()}`
+  const getVideoEvaluations = async (videoId: number, params?: EvaluationFilters): Promise<EvaluationList> => {
+    const queryParams = new URLSearchParams()
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          queryParams.append(key, value.toString())
+        }
+      })
+    }
+    
+    const url = `http://localhost:8000/api/v1/videos/${videoId}/evaluations${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
     const response = await get(url)
     return response.json()
   }
 
-  // Get a specific evaluation by ID
+  const getAthleteEvaluations = async (athleteId: number, params?: EvaluationFilters): Promise<EvaluationList> => {
+    const queryParams = new URLSearchParams()
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          queryParams.append(key, value.toString())
+        }
+      })
+    }
+    
+    const url = `http://localhost:8000/api/v1/athletes/${athleteId}/evaluations${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+    const response = await get(url)
+    return response.json()
+  }
+
   const getEvaluation = async (evaluationId: number): Promise<Evaluation> => {
     const response = await get(`http://localhost:8000/api/v1/evaluations/${evaluationId}`)
     return response.json()
   }
 
-  // Update an evaluation
-  const updateEvaluation = async (evaluationId: number, data: EvaluationUpdate): Promise<Evaluation> => {
-    const response = await put(`http://localhost:8000/api/v1/evaluations/${evaluationId}`, data)
+  const updateEvaluation = async (evaluationId: number, evaluationData: EvaluationUpdate): Promise<Evaluation> => {
+    const response = await put(`http://localhost:8000/api/v1/evaluations/${evaluationId}`, evaluationData)
     return response.json()
   }
 
-  // Delete an evaluation
   const deleteEvaluation = async (evaluationId: number): Promise<void> => {
-    await del(`http://localhost:8000/api/v1/evaluations/${evaluationId}`)
-  }
-
-  // Get all evaluations for a specific athlete
-  const getAthleteEvaluations = async (athleteId: number, filters?: { skip?: number; limit?: number }): Promise<EvaluationList> => {
-    const params = new URLSearchParams()
-    if (filters?.skip !== undefined) params.append("skip", filters.skip.toString())
-    if (filters?.limit !== undefined) params.append("limit", filters.limit.toString())
-
-    const url = `http://localhost:8000/api/v1/athletes/${athleteId}/evaluations?${params.toString()}`
-    const response = await get(url)
+    const response = await del(`http://localhost:8000/api/v1/evaluations/${evaluationId}`)
     return response.json()
   }
 
-  // Get all evaluations (coaches and admins only)
-  const getAllEvaluations = async (filters?: AdminEvaluationFilters): Promise<EvaluationList> => {
-    const params = new URLSearchParams()
-    if (filters?.skip !== undefined) params.append("skip", filters.skip.toString())
-    if (filters?.limit !== undefined) params.append("limit", filters.limit.toString())
-    if (filters?.evaluator_id !== undefined) params.append("evaluator_id", filters.evaluator_id.toString())
-    if (filters?.athlete_id !== undefined) params.append("athlete_id", filters.athlete_id.toString())
-    if (filters?.video_id !== undefined) params.append("video_id", filters.video_id.toString())
-
-    const url = `http://localhost:8000/api/v1/evaluations?${params.toString()}`
+  const getAllEvaluations = async (params?: AdminEvaluationFilters): Promise<EvaluationList> => {
+    const queryParams = new URLSearchParams()
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          queryParams.append(key, value.toString())
+        }
+      })
+    }
+    
+    const url = `http://localhost:8000/api/v1/evaluations${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
     const response = await get(url)
     return response.json()
   }
@@ -133,10 +148,10 @@ export function useEvaluationApi() {
   return {
     createEvaluation,
     getVideoEvaluations,
+    getAthleteEvaluations,
     getEvaluation,
     updateEvaluation,
     deleteEvaluation,
-    getAthleteEvaluations,
     getAllEvaluations,
   }
 } 

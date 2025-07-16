@@ -1,51 +1,47 @@
-"use client"
+"use client";
+import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { ProtectedRoute } from "@/components/auth/protected-route";
+import { Layout } from "@/components/layout/layout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ArrowLeft, Save, Upload, X, Camera } from "lucide-react";
+import Link from "next/link";
+import { useToast } from "@/hooks/use-toast";
+import { useAthleteApi } from "@/hooks/use-athlete-api";
 
-import { useState, useRef } from "react"
-import { useRouter } from "next/navigation"
-import { ProtectedRoute } from "@/components/auth/protected-route"
-import { Layout } from "@/components/layout/layout"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { ArrowLeft, Save, UserPlus, Upload, X, Camera } from "lucide-react"
-import Link from "next/link"
-import { useToast } from "@/hooks/use-toast"
-import { useAthleteApi } from "@/hooks/use-athlete-api"
-
-export default function CreateAthletePage() {
-  const router = useRouter()
-  const { toast } = useToast()
-  const [isSubmitting, setIsSubmitting] = useState(false)
+export default function EditAthletePage({ params }: { params: Promise<{ id: string }> }) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const { getAthlete, updateAthlete, uploadAthleteAvatar } = useAthleteApi();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [athleteId, setAthleteId] = useState<number | null>(null);
 
   const [formData, setFormData] = useState({
-    // Personal Information
     firstName: "",
     lastName: "",
     dateOfBirth: "",
     gender: "",
     email: "",
     phone: "",
-    
-    // Fencing Information
     weapon: "",
     skillLevel: "",
     club: "",
     coach: "",
     region: "",
-    
-    // Additional Information
     emergencyContact: "",
     emergencyPhone: "",
     medicalNotes: "",
     notes: "",
-  })
-
-  // Tutor information for minors
+  });
   const [tutorInfo, setTutorInfo] = useState({
     tutorFirstName: "",
     tutorLastName: "",
@@ -54,103 +50,106 @@ export default function CreateAthletePage() {
     tutorRelationship: "",
     tutorAddress: "",
     tutorOccupation: "",
-  })
+  });
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string>("");
+  const [originalAvatarUrl, setOriginalAvatarUrl] = useState<string>("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [avatarFile, setAvatarFile] = useState<File | null>(null)
-  const [avatarPreview, setAvatarPreview] = useState<string>("")
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  const { createAthlete, uploadAthleteAvatar } = useAthleteApi();
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const resolvedParams = await params;
+        setAthleteId(Number(resolvedParams.id));
+        const athlete = await getAthlete(Number(resolvedParams.id));
+        setFormData({
+          firstName: athlete.first_name || "",
+          lastName: athlete.last_name || "",
+          dateOfBirth: athlete.date_of_birth || "",
+          gender: athlete.gender || "",
+          email: athlete.email || "",
+          phone: athlete.phone || "",
+          weapon: athlete.weapon || "",
+          skillLevel: athlete.skill_level || "",
+          club: athlete.club || "",
+          coach: athlete.coach || "",
+          region: athlete.region || "",
+          emergencyContact: athlete.emergency_contact || "",
+          emergencyPhone: athlete.emergency_phone || "",
+          medicalNotes: athlete.medical_notes || "",
+          notes: athlete.notes || "",
+        });
+        if (athlete.tutor) {
+          setTutorInfo({
+            tutorFirstName: athlete.tutor.first_name || "",
+            tutorLastName: athlete.tutor.last_name || "",
+            tutorEmail: athlete.tutor.email || "",
+            tutorPhone: athlete.tutor.phone || "",
+            tutorRelationship: athlete.tutor.tutor_relationship || "",
+            tutorAddress: athlete.tutor.address || "",
+            tutorOccupation: athlete.tutor.occupation || "",
+          });
+        }
+        setOriginalAvatarUrl(athlete.avatar_url || "");
+        setAvatarPreview(athlete.avatar_url || "");
+      } catch (err) {
+        setError("Failed to load athlete data");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [params, getAthlete]);
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }))
-  }
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        toast({
-          title: "Type de fichier invalide",
-          description: "Veuillez sélectionner un fichier image (JPEG, PNG, etc.)",
-          variant: "destructive",
-        })
-        return
-      }
-
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        toast({
-          title: "Fichier trop grand",
-          description: "Veuillez sélectionner un fichier image plus petit que 5MB",
-          variant: "destructive",
-        })
-        return
-      }
-
-      setAvatarFile(file)
-      
-      // Create preview URL
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        setAvatarPreview(e.target?.result as string)
-      }
-      reader.readAsDataURL(file)
-    }
-  }
-
-  const removeAvatar = () => {
-    setAvatarFile(null)
-    setAvatarPreview("")
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""
-    }
-  }
-
-  const triggerFileInput = () => {
-    fileInputRef.current?.click()
-  }
-
-  // Calculate age from date of birth
-  const calculateAge = (dateOfBirth: string): number => {
-    if (!dateOfBirth) return 0
-    
-    const today = new Date()
-    const birthDate = new Date(dateOfBirth)
-    
-    // Check if the date is valid
-    if (isNaN(birthDate.getTime())) return 0
-    
-    let age = today.getFullYear() - birthDate.getFullYear()
-    const monthDiff = today.getMonth() - birthDate.getMonth()
-    
-    // Adjust age if birthday hasn't occurred yet this year
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--
-    }
-    
-    return Math.max(0, age) // Ensure age is not negative
-  }
-
-  // Check if athlete is a minor (under 18)
-  const isMinor = formData.dateOfBirth ? calculateAge(formData.dateOfBirth) < 18 : false
-
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
   const handleTutorInputChange = (field: string, value: string) => {
-    setTutorInfo(prev => ({
-      ...prev,
-      [field]: value
-    }))
-  }
+    setTutorInfo(prev => ({ ...prev, [field]: value }));
+  };
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        toast({ title: "Fichier de type invalide", description: "Veuillez sélectionner un fichier image (JPEG, PNG, etc.)", variant: "destructive" });
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        toast({ title: "Fichier trop grand", description: "Veuillez sélectionner un fichier image inférieur à 5MB", variant: "destructive" });
+        return;
+      }
+      setAvatarFile(file);
+      const reader = new FileReader();
+      reader.onload = (e) => setAvatarPreview(e.target?.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+  const removeAvatar = () => {
+    setAvatarFile(null);
+    setAvatarPreview(originalAvatarUrl || "");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+  const triggerFileInput = () => fileInputRef.current?.click();
+  const calculateAge = (dateOfBirth: string): number => {
+    if (!dateOfBirth) return 0;
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    if (isNaN(birthDate.getTime())) return 0;
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return Math.max(0, age);
+  };
+  const isMinor = formData.dateOfBirth ? calculateAge(formData.dateOfBirth) < 18 : false;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!athleteId) return;
     setIsSubmitting(true);
     try {
-      // Map form fields to API schema
       const athletePayload: any = {
         first_name: formData.firstName,
         last_name: formData.lastName,
@@ -168,7 +167,6 @@ export default function CreateAthletePage() {
         medical_notes: formData.medicalNotes || undefined,
         notes: formData.notes || undefined,
       };
-      // Add tutor info if minor
       if (isMinor) {
         athletePayload.tutor = {
           first_name: tutorInfo.tutorFirstName,
@@ -180,27 +178,25 @@ export default function CreateAthletePage() {
           occupation: tutorInfo.tutorOccupation || undefined,
         };
       }
-      // Create athlete
-      const created = await createAthlete(athletePayload);
-      // Upload avatar if present
-      if (avatarFile && created?.id) {
-        await uploadAthleteAvatar(created.id, avatarFile);
+      await updateAthlete(athleteId, athletePayload);
+      if (avatarFile) {
+        await uploadAthleteAvatar(athleteId, avatarFile);
       }
-      toast({
-        title: "Succès!",
-        description: "L'athlète a été ajouté avec succès.",
-      });
-      router.push("/athletes");
+      toast({ title: "Succès!", description: "L'athlète a été mis à jour avec succès." });
+      router.push(`/athletes/${athleteId}`);
     } catch (error: any) {
-      toast({
-        title: "Erreur",
-        description: error?.message || "Échec de l'ajout de l'athlète. Veuillez réessayer.",
-        variant: "destructive",
-      });
+      toast({ title: "Erreur", description: error?.message || "Échec de la mise à jour de l'athlète. Veuillez réessayer.", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  if (loading) {
+    return <div className="text-center py-10">Chargement des données de l'athlète...</div>;
+  }
+  if (error) {
+    return <div className="text-center text-red-500 py-10">{error}</div>;
+  }
 
   return (
     <ProtectedRoute>
@@ -209,26 +205,20 @@ export default function CreateAthletePage() {
           {/* Header */}
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="sm" asChild>
-              <Link href="/athletes">
+              <Link href={`/athletes/${athleteId}`}>
                 <ArrowLeft className="mr-2 h-4 w-4" />
               </Link>
             </Button>
             <div>
-              <h1 className="text-3xl font-bold">Ajouter un nouvel athlète</h1>
-              <p className="text-muted-foreground">
-                Entrez les informations de l'athlète pour les ajouter à la plateforme
-              </p>
+              <h1 className="text-3xl font-bold">Modifier l'athlète</h1>
+              <p className="text-muted-foreground">Mettre à jour les informations de l'athlète</p>
             </div>
           </div>
-
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Personal Information */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <UserPlus className="h-5 w-5" />
-                  Informations personnelles
-                </CardTitle>
+                <CardTitle className="flex items-center gap-2">Informations personnelles</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* Avatar Upload */}
@@ -236,15 +226,13 @@ export default function CreateAthletePage() {
                   <Label className="text-base font-medium">Photo de profil</Label>
                   <div className="relative">
                     <Avatar className="h-24 w-24 border-2 border-dashed border-gray-300 hover:border-gray-400 transition-colors">
-                      <AvatarImage src={avatarPreview} alt="Profile preview" />
+                      <AvatarImage src={avatarPreview} alt="Preview de profil" />
                       <AvatarFallback className="text-lg">
-                        {formData.firstName && formData.lastName 
+                        {formData.firstName && formData.lastName
                           ? `${formData.firstName[0]}${formData.lastName[0]}`.toUpperCase()
-                          : <Camera className="h-8 w-8" />
-                        }
+                          : <Camera className="h-8 w-8" />}
                       </AvatarFallback>
                     </Avatar>
-                    
                     {avatarPreview && (
                       <Button
                         type="button"
@@ -257,7 +245,6 @@ export default function CreateAthletePage() {
                       </Button>
                     )}
                   </div>
-                  
                   <div className="flex flex-col items-center space-y-2">
                     <Button
                       type="button"
@@ -269,11 +256,8 @@ export default function CreateAthletePage() {
                       <Upload className="h-4 w-4" />
                       {avatarPreview ? "Changer la photo" : "Télécharger la photo"}
                     </Button>
-                    <p className="text-xs text-muted-foreground text-center">
-                      JPG, PNG jusqu'à 5MB
-                    </p>
+                    <p className="text-xs text-muted-foreground text-center">JPG, PNG jusqu'à 5MB</p>
                   </div>
-                  
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -282,9 +266,7 @@ export default function CreateAthletePage() {
                     className="hidden"
                   />
                 </div>
-
                 <Separator />
-
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="firstName">Prénom *</Label>
@@ -292,7 +274,7 @@ export default function CreateAthletePage() {
                       id="firstName"
                       value={formData.firstName}
                       onChange={(e) => handleInputChange("firstName", e.target.value)}
-                      placeholder="Entrez le prénom"
+                      placeholder="Entrer le prénom"
                       required
                     />
                   </div>
@@ -302,12 +284,11 @@ export default function CreateAthletePage() {
                       id="lastName"
                       value={formData.lastName}
                       onChange={(e) => handleInputChange("lastName", e.target.value)}
-                      placeholder="Entrez le nom"
+                      placeholder="Entrer le nom"
                       required
                     />
                   </div>
                 </div>
-
                 <div className="grid gap-4 md:grid-cols-3">
                   <div className="space-y-2">
                     <Label htmlFor="dateOfBirth">Date de naissance *</Label>
@@ -343,7 +324,6 @@ export default function CreateAthletePage() {
                     />
                   </div>
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="phone">Numéro de téléphone</Label>
                   <Input
@@ -356,7 +336,6 @@ export default function CreateAthletePage() {
                 </div>
               </CardContent>
             </Card>
-
             {/* Fencing Information */}
             <Card>
               <CardHeader>
@@ -392,7 +371,6 @@ export default function CreateAthletePage() {
                     </Select>
                   </div>
                 </div>
-
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="club">Club</Label>
@@ -400,7 +378,7 @@ export default function CreateAthletePage() {
                       id="club"
                       value={formData.club}
                       onChange={(e) => handleInputChange("club", e.target.value)}
-                      placeholder="Entrez le nom du club"
+                      placeholder="Entrer le nom du club"
                     />
                   </div>
                   <div className="space-y-2">
@@ -409,11 +387,10 @@ export default function CreateAthletePage() {
                       id="coach"
                       value={formData.coach}
                       onChange={(e) => handleInputChange("coach", e.target.value)}
-                      placeholder="Entrez le nom de l'entraîneur"
+                      placeholder="Entrer le nom de l'entraîneur"
                     />
                   </div>
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="region">Région</Label>
                   <Select value={formData.region} onValueChange={(value) => handleInputChange("region", value)}>
@@ -433,7 +410,6 @@ export default function CreateAthletePage() {
                 </div>
               </CardContent>
             </Card>
-
             {/* Emergency Contact */}
             <Card>
               <CardHeader>
@@ -447,7 +423,7 @@ export default function CreateAthletePage() {
                       id="emergencyContact"
                       value={formData.emergencyContact}
                       onChange={(e) => handleInputChange("emergencyContact", e.target.value)}
-                      placeholder="Nom du parent ou de l'aide juridique"
+                      placeholder="Nom du parent ou tuteur"
                     />
                   </div>
                   <div className="space-y-2">
@@ -463,18 +439,11 @@ export default function CreateAthletePage() {
                 </div>
               </CardContent>
             </Card>
-
             {/* Tutor Information - Only show for minors */}
             {isMinor && (
               <Card className="border-orange-800 ">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-orange-800">
-                    <UserPlus className="h-5 w-5" />
-                    Informations du tuteur/gardien légal
-                    <span className="text-sm font-normal text-orange-600">
-                      (Requis pour les athlètes de moins de 18 ans)
-                    </span>
-                  </CardTitle>
+                  <CardTitle className="flex items-center gap-2 text-orange-800">Informations du tuteur légal <span className="text-sm font-normal text-orange-600">(Requis pour les athlètes de moins de 18 ans)</span></CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-4 md:grid-cols-2">
@@ -484,7 +453,7 @@ export default function CreateAthletePage() {
                         id="tutorFirstName"
                         value={tutorInfo.tutorFirstName}
                         onChange={(e) => handleTutorInputChange("tutorFirstName", e.target.value)}
-                        placeholder="Entrez le prénom du tuteur"
+                        placeholder="Entrer le prénom du tuteur"
                         required={isMinor}
                       />
                     </div>
@@ -494,12 +463,11 @@ export default function CreateAthletePage() {
                         id="tutorLastName"
                         value={tutorInfo.tutorLastName}
                         onChange={(e) => handleTutorInputChange("tutorLastName", e.target.value)}
-                        placeholder="Entrez le nom du tuteur"
+                        placeholder="Entrer le nom du tuteur"
                         required={isMinor}
                       />
                     </div>
                   </div>
-
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="tutorEmail">Email du tuteur *</Label>
@@ -524,20 +492,16 @@ export default function CreateAthletePage() {
                       />
                     </div>
                   </div>
-
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="tutorRelationship">Relation avec l'athlète *</Label>
-                      <Select 
-                        value={tutorInfo.tutorRelationship} 
-                        onValueChange={(value) => handleTutorInputChange("tutorRelationship", value)}
-                      >
+                      <Select value={tutorInfo.tutorRelationship} onValueChange={(value) => handleTutorInputChange("tutorRelationship", value)}>
                         <SelectTrigger>
                           <SelectValue placeholder="Sélectionner la relation" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="parent">Parent</SelectItem>
-                          <SelectItem value="legal-guardian">Gardien légal</SelectItem>
+                          <SelectItem value="legal-guardian">Tuteur légal</SelectItem>
                           <SelectItem value="grandparent">Grand-parent</SelectItem>
                           <SelectItem value="uncle-aunt">Tante/Oncle</SelectItem>
                           <SelectItem value="sibling">Frère/Soeur (18+)</SelectItem>
@@ -551,25 +515,23 @@ export default function CreateAthletePage() {
                         id="tutorOccupation"
                         value={tutorInfo.tutorOccupation}
                         onChange={(e) => handleTutorInputChange("tutorOccupation", e.target.value)}
-                        placeholder="Entrez l'occupation"
+                        placeholder="Entrer l'occupation"
                       />
                     </div>
                   </div>
-
                   <div className="space-y-2">
                     <Label htmlFor="tutorAddress">Adresse du tuteur</Label>
                     <Textarea
                       id="tutorAddress"
                       value={tutorInfo.tutorAddress}
                       onChange={(e) => handleTutorInputChange("tutorAddress", e.target.value)}
-                      placeholder="Entrez l'adresse complète"
+                      placeholder="Entrer l'adresse complète"
                       rows={3}
                     />
                   </div>
                 </CardContent>
               </Card>
             )}
-
             {/* Additional Information */}
             <Card>
               <CardHeader>
@@ -582,7 +544,7 @@ export default function CreateAthletePage() {
                     id="medicalNotes"
                     value={formData.medicalNotes}
                     onChange={(e) => handleInputChange("medicalNotes", e.target.value)}
-                    placeholder="Toute condition médicale, allergie ou exigence particulière..."
+                    placeholder="Toute condition médicale, allergies ou exigences spéciales..."
                     rows={3}
                   />
                 </div>
@@ -598,20 +560,19 @@ export default function CreateAthletePage() {
                 </div>
               </CardContent>
             </Card>
-
             {/* Form Actions */}
             <div className="flex justify-end gap-4">
               <Button variant="outline" type="button" asChild>
-                <Link href="/athletes">Annuler</Link>
+                <Link href={`/athletes/${athleteId}`}>Annuler</Link>
               </Button>
               <Button type="submit" disabled={isSubmitting}>
                 <Save className="mr-2 h-4 w-4" />
-                {isSubmitting ? "Ajout de l'athlète..." : "Ajouter l'athlète"}
+                {isSubmitting ? "Enregistrement..." : "Enregistrer les modifications"}
               </Button>
             </div>
           </form>
         </div>
       </Layout>
     </ProtectedRoute>
-  )
+  );
 } 

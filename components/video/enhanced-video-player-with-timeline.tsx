@@ -6,15 +6,17 @@ import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Play, Pause, Maximize, SkipForward, RotateCcw, User, Calendar, Sword, Trophy, Clock, Tag, X, Volume2, VolumeX } from "lucide-react"
+import { Play, Pause, Maximize, SkipForward, RotateCcw, User, Calendar, Sword, Trophy, Clock, Tag, X, Volume2, VolumeX, Star } from "lucide-react"
 import Link from "next/link"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import { EvaluationModal } from "@/components/video/evaluation-modal"
+import { useEvaluationApi } from "@/hooks/use-evaluation-api"
 
 interface VideoMetadata {
   id: string
   title: string
   athleteRight: {
-    id: string
+    id: string | null
     firstName: string
     lastName: string
     age: number
@@ -25,7 +27,7 @@ interface VideoMetadata {
     ranking: string
   }
   athleteLeft: {
-    id: string
+    id: string | null
     firstName: string
     lastName: string
     age: number
@@ -93,6 +95,53 @@ export function EnhancedVideoPlayer({
   const [availableTags, setAvailableTags] = useState<string[]>([...PREDEFINED_TAGS])
   const [selectedTag, setSelectedTag] = useState<string | undefined>(undefined)
 
+  // Evaluation modal state
+  const [evaluationModal, setEvaluationModal] = useState<{
+    isOpen: boolean
+    athleteId: string
+    athleteName: string
+  }>({
+    isOpen: false,
+    athleteId: "",
+    athleteName: "",
+  })
+  const [evaluatedAthletes, setEvaluatedAthletes] = useState<Set<string>>(new Set())
+  const { getVideoEvaluations } = useEvaluationApi()
+
+  // Load existing evaluations to track which athletes have been evaluated
+  useEffect(() => {
+    const loadEvaluations = async () => {
+      try {
+        const evaluations = await getVideoEvaluations(parseInt(metadata.id))
+        
+        const evaluatedIds = new Set<string>()
+        
+        // Handle both possible response structures
+        const evaluationsArray = evaluations.evaluations || evaluations || []
+        
+        if (Array.isArray(evaluationsArray)) {
+          evaluationsArray.forEach((evaluation: any) => {
+            if (evaluation && evaluation.athlete_id) {
+              evaluatedIds.add(evaluation.athlete_id.toString())
+            }
+          })
+        }
+        setEvaluatedAthletes(evaluatedIds)
+      } catch (error) {
+        console.error('Error loading evaluations:', error)
+        // Set empty set on error to avoid undefined issues
+        setEvaluatedAthletes(new Set())
+        
+        // Log the error for debugging
+        console.warn('Error loading evaluations:', error)
+      }
+    }
+
+    if (metadata.id) {
+      loadEvaluations()
+    }
+  }, [metadata.id])
+
   // Auto-play when video loads
   useEffect(() => {
     const video = videoRef.current
@@ -105,10 +154,10 @@ export function EnhancedVideoPlayer({
         // Auto-play might be blocked by browser, that's okay
       })
     }
-
     video.addEventListener("canplay", handleCanPlay)
     return () => video.removeEventListener("canplay", handleCanPlay)
   }, [videoRef])
+
 
   // Handle fullscreen changes
   useEffect(() => {
@@ -284,9 +333,23 @@ export function EnhancedVideoPlayer({
     const video = videoRef.current
     if (!video) return
 
-    const newTime = (value[0] / 100) * duration
+    const newTime = value[0]
+    setCurrentTime(newTime)
+    onSeekToTime?.(newTime)
+  }
+
+  const handleSeekStart = () => {
+    setIsSeeking(true)
+  }
+
+  const handleSeekEnd = (value: number[]) => {
+    const video = videoRef.current
+    if (!video) return
+
+    const newTime = value[0]
     video.currentTime = newTime
     setCurrentTime(newTime)
+    setIsSeeking(false)
     onSeekToTime?.(newTime)
   }
 
@@ -339,222 +402,261 @@ export function EnhancedVideoPlayer({
     }
   }
 
+  const handleEvaluationSubmitted = () => {
+    // Add the athlete to the evaluated set
+    setEvaluatedAthletes(prev => new Set([...prev, evaluationModal.athleteId]))
+  }
+
+  const openEvaluationModal = (athleteId: string, athleteName: string) => {
+    setEvaluationModal({
+      isOpen: true,
+      athleteId,
+      athleteName,
+    })
+  }
+
+  const closeEvaluationModal = () => {
+    setEvaluationModal({
+      isOpen: false,
+      athleteId: "",
+      athleteName: "",
+    })
+  }
+
+  const hasLeft = !!metadata.athleteLeft.id;
+  const hasRight = !!metadata.athleteRight.id;
+  const athleteCards = [hasLeft, hasRight].filter(Boolean).length;
+
   return (
     <div className="space-y-6">
-      {/* Video Player */}
-      <Card className="overflow-hidden">
-        <div
-          className="relative bg-black group"
-          onMouseEnter={() => setShowControls(true)}
-          onMouseLeave={() => setShowControls(false)}
-        >
-          <video
-            ref={videoRef}
-            src={videoUrl}
-            className={`w-full aspect-video transition-all duration-300 ${
-              isSeeking ? 'ring-4 ring-blue-400 ring-opacity-60' : ''
-            }`}
-            onClick={togglePlay}
-            onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
-          />
+      {/* Video Player Card with aspect ratio */}
+      <Card>
+        <CardContent className="p-0">
+          <div className="relative bg-black rounded-t-lg aspect-video">
+            <video
+              ref={videoRef}
+              src={videoUrl}
+              className="w-full h-full object-contain"
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              onSeeking={() => setIsSeeking(true)}
+              onSeeked={() => setIsSeeking(false)}
+              onMouseMove={() => setShowControls(true)}
+              onMouseLeave={() => setShowControls(false)}
+            />
 
-          {/* Video Controls */}
-          <div
-            className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 transition-opacity duration-300 ${
-              showControls ? "opacity-100" : "opacity-0"
-            }`}
-          >
-            <div className="mb-4">
-              <Slider
-                value={[duration ? (currentTime / duration) * 100 : 0]}
-                onValueChange={handleSeek}
-                max={100}
-                step={0.1}
-                className="w-full"
-              />
-              <div className="flex justify-between text-xs text-white mt-1">
-                <span>{formatTime(currentTime)}</span>
-                <span>{formatTime(duration)}</span>
+            {/* Video Controls Overlay */}
+            <div 
+              className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}
+              onMouseMove={() => setShowControls(true)}
+              onMouseLeave={() => setShowControls(false)}
+            >
+              {/* Progress Bar */}
+              <div className="mb-4">
+                <Slider
+                  value={[currentTime]}
+                  onValueChange={handleSeek}
+                  onValueCommit={handleSeekEnd}
+                  max={duration}
+                  step={0.1}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-white text-xs mt-1">
+                  <span>{formatTime(currentTime)}</span>
+                  <span>{formatTime(duration)}</span>
+                </div>
               </div>
-            </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" onClick={togglePlay} className="text-white hover:bg-white/20">
-                  {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                </Button>
-                <Button variant="ghost" size="icon" onClick={restart} className="text-white hover:bg-white/20" title="Restart (R)">
-                  <RotateCcw className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon" onClick={() => {
-                  const video = videoRef.current
-                  if (video) {
-                    video.currentTime = Math.min(video.duration, video.currentTime + 10)
-                  }
-                }} className="text-white hover:bg-white/20" title="Skip 10s (→)">
-                  <SkipForward className="h-4 w-4" />
-                </Button>
-                
-                {/* Volume Control */}
-                <div className="flex items-center gap-1 ml-2">
-                  <Button variant="ghost" size="icon" onClick={toggleMute} className="text-white hover:bg-white/20" title="Mute (M)">
+              {/* Control Buttons */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="icon" onClick={togglePlay} className="text-white hover:bg-black/30">
+                    {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={restart} className="text-white hover:bg-black/30">
+                    <RotateCcw className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={toggleMute} className="text-white hover:bg-black/30">
                     {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                   </Button>
-                  <Slider
-                    value={[isMuted ? 0 : volume * 100]}
-                    onValueChange={(value) => {
-                      setVolume(value[0] / 100)
-                      if (value[0] > 0) setIsMuted(false)
-                    }}
-                    max={100}
-                    step={1}
-                    className="w-20"
-                  />
+                  <div className="w-20">
+                    <Slider
+                      value={[volume]}
+                      onValueChange={(value) => setVolume(value[0])}
+                      max={1}
+                      step={0.1}
+                      className="w-full"
+                    />
+                  </div>
+                  <span className="text-white text-xs">{Math.round(volume * 100)}%</span>
                 </div>
-                
-                {/* Add Time and Tag Buttons */}
-                <div className="flex items-center gap-1 ml-2">
+
+                <div className="flex items-center gap-2">
                   <Button 
                     variant="ghost" 
                     size="sm" 
                     onClick={addTimeStamp}
-                    className="text-white hover:bg-white/20 text-xs px-2 py-1 h-7"
+                    className="text-white hover:bg-black/30 text-xs px-2 py-1 h-7"
                   >
                     <Clock className="h-3 w-3 mr-1" />
-                    Add time
+                    Timestamp
                   </Button>
                   <Button 
                     variant="ghost" 
                     size="sm" 
                     onClick={() => setShowTagInput(true)}
-                    className="text-white hover:bg-white/20 text-xs px-2 py-1 h-7"
+                    className="text-white hover:bg-black/30 text-xs px-2 py-1 h-7"
                   >
                     <Tag className="h-3 w-3 mr-1" />
                     Ajouter un tag
                   </Button>
                 </div>
+
+                <div className="flex items-center gap-2">
+                  <select
+                    value={playbackRate}
+                    onChange={(e) => setPlaybackRate(Number(e.target.value))}
+                    className="bg-transparent text-white text-sm border border-white/20 rounded px-2 py-1"
+                  >
+                    <option value={0.5} className="text-black">
+                      0.5x
+                    </option>
+                    <option value={1} className="text-black">
+                      1x
+                    </option>
+                    <option value={1.25} className="text-black">
+                      1.25x
+                    </option>
+                    <option value={1.5} className="text-black">
+                      1.5x
+                    </option>
+                    <option value={2} className="text-black">
+                      2x
+                    </option>
+                  </select>
+                  <Button variant="ghost" size="icon" onClick={toggleFullscreen} className="text-white hover:bg-black/30" title="Fullscreen (F)">
+                    <Maximize className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <select
-                  value={playbackRate}
-                  onChange={(e) => setPlaybackRate(Number(e.target.value))}
-                  className="bg-transparent text-white text-sm border border-white/20 rounded px-2 py-1"
-                >
-                  <option value={0.5} className="text-black">
-                    0.5x
-                  </option>
-                  <option value={1} className="text-black">
-                    1x
-                  </option>
-                  <option value={1.25} className="text-black">
-                    1.25x
-                  </option>
-                  <option value={1.5} className="text-black">
-                    1.5x
-                  </option>
-                  <option value={2} className="text-black">
-                    2x
-                  </option>
-                </select>
-                <Button variant="ghost" size="icon" onClick={toggleFullscreen} className="text-white hover:bg-white/20" title="Fullscreen (F)">
-                  <Maximize className="h-4 w-4" />
-                </Button>
-              </div>
+              {/* Tag Combobox */}
+              {showTagInput && (
+                <div className="mt-3 flex items-center gap-2">
+                  <Select value={selectedTag} onValueChange={setSelectedTag}>
+                    <SelectTrigger className="w-[220px] bg-white/10 border-white/20 text-white">
+                      <SelectValue placeholder="Choisir un tag..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableTags.map(tag => (
+                        <SelectItem key={tag} value={tag}>{tag}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => selectedTag && addTag(selectedTag)}
+                    className="text-white hover:bg-black/30 text-xs px-2 py-1 h-8"
+                    disabled={!selectedTag}
+                  >
+                    Ajouter
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => {
+                      setShowTagInput(false)
+                      setSelectedTag(undefined)
+                    }}
+                    className="text-white hover:bg-black/30 text-xs px-2 py-1 h-8"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
             </div>
-
-            {/* Tag Combobox */}
-            {showTagInput && (
-              <div className="mt-3 flex items-center gap-2">
-                <Select value={selectedTag} onValueChange={setSelectedTag}>
-                  <SelectTrigger className="w-[220px] bg-white/10 border-white/20 text-white">
-                    <SelectValue placeholder="Choisir un tag..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableTags.map(tag => (
-                      <SelectItem key={tag} value={tag}>{tag}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => selectedTag && addTag(selectedTag)}
-                  className="text-white hover:bg-white/20 text-xs px-2 py-1 h-8"
-                  disabled={!selectedTag}
-                >
-                  Ajouter
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => {
-                    setShowTagInput(false)
-                    setSelectedTag(undefined)
-                  }}
-                  className="text-white hover:bg-white/20 text-xs px-2 py-1 h-8"
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
-            )}
           </div>
-        </div>
+        </CardContent>
       </Card>
 
-      {/* Video Metadata */}
-      <div className="grid gap-6 lg:grid-cols-5">
-        {/* Athlète à gauche - Left Column */}
-        <div className="lg:col-span-1">
-          <Card>
-            <CardContent className="p-6">
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <User className="h-5 w-5 text-red-600" />
-                  <h3 className="font-semibold text-red-800 text-sm">Athlète à gauche</h3>
-                </div>
+      {/* Athlete Cards and Description Grid */}
+      <div className={`grid gap-3 ${athleteCards === 2 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
+        {hasLeft && (
+          <div className="lg:col-span-1">
+            <Card>
+              <CardContent className="p-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <User className="h-5 w-5 text-red-600" />
+                      <h3 className="font-semibold text-red-800 text-sm">Athlète à gauche</h3>
+                    </div>
+                    <div className="pl-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => metadata.athleteLeft.id && openEvaluationModal(metadata.athleteLeft.id, `${metadata.athleteLeft.firstName} ${metadata.athleteLeft.lastName}`)}
+                      disabled={!metadata.athleteLeft.id || evaluatedAthletes.has(metadata.athleteLeft.id)}
+                      className={`h-8 w-8 rounded-lg border-2 transition-all duration-200 ${
+                        !metadata.athleteLeft.id
+                          ? "border-gray-300 bg-gray-100 text-gray-400 cursor-not-allowed"
+                          : evaluatedAthletes.has(metadata.athleteLeft.id)
+                          ? "border-blue-900 bg-blue-900 text-white cursor-not-allowed shadow-md"
+                          : "border-blue-900 bg-white text-blue-900 hover:bg-blue-900 hover:text-white hover:shadow-md"
+                      }`}
+                      title={
+                        !metadata.athleteLeft.id
+                          ? "Aucun athlète associé"
+                          : evaluatedAthletes.has(metadata.athleteLeft.id)
+                          ? "Déjà évalué"
+                          : "Évaluer cet athlète"
+                      }
+                    >
+                      <Star className={`h-4 w-4 ${evaluatedAthletes.has(metadata.athleteLeft.id) ? "fill-current" : ""}`} />
+                    </Button>
+                    </div>
+                  </div>
 
-                <div className="space-y-3">
-                  <Button variant="link" className="p-0 h-auto text-left" asChild>
-                    <Link href={`/athletes/${metadata.athleteLeft.id}`}>
-                      <div>
-                        <p className="font-medium text-base">
-                          {metadata.athleteLeft.firstName} {metadata.athleteLeft.lastName}
-                        </p>
-                        <p className="text-xs text-muted-foreground">Voir le profil complet</p>
+                  <div className="space-y-3">
+                    <Button variant="link" className="p-0 h-auto text-left" asChild disabled={!metadata.athleteLeft.id}>
+                      <Link href={metadata.athleteLeft.id ? `/athletes/${metadata.athleteLeft.id}` : "#"}>
+                        <div>
+                          <p className="font-medium text-base">
+                            {metadata.athleteLeft.firstName} {metadata.athleteLeft.lastName}
+                          </p>
+                          <p className="text-xs text-muted-foreground">Voir le profil complet</p>
+                        </div>
+                      </Link>
+                    </Button>
+
+                    <div className="space-y-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-3 w-3 text-muted-foreground" />
+                        <span>
+                          {metadata.athleteLeft.age} ans • {metadata.athleteLeft.gender}
+                        </span>
                       </div>
-                    </Link>
-                  </Button>
-
-                  <div className="space-y-2 text-xs">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-3 w-3 text-muted-foreground" />
-                      <span>
-                        {metadata.athleteLeft.age} ans • {metadata.athleteLeft.gender}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Sword className="h-3 w-3 text-muted-foreground" />
-                      <span className="capitalize">{metadata.athleteLeft.weapon}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Trophy className="h-3 w-3 text-muted-foreground" />
-                      <span>{metadata.athleteLeft.ranking}</span>
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      <p>{metadata.athleteLeft.club}</p>
-                      <p>Coach: {metadata.athleteLeft.coach}</p>
+                      <div className="flex items-center gap-2">
+                        <Sword className="h-3 w-3 text-muted-foreground" />
+                        <span className="capitalize">{metadata.athleteLeft.weapon}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Trophy className="h-3 w-3 text-muted-foreground" />
+                        <span>{metadata.athleteLeft.ranking}</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        <p>{metadata.athleteLeft.club}</p>
+                        <p>Coach: {metadata.athleteLeft.coach}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Video Description - Middle Column */}
-        <div className="lg:col-span-3">
+              </CardContent>
+            </Card>
+          </div>
+        )}
+        <div className={`lg:col-span-${athleteCards === 2 ? 3 : 3}`}> {/* Description always takes 3 columns */}
           <Card>
             <CardContent className="p-6">
               <div className="space-y-4">
@@ -572,55 +674,91 @@ export function EnhancedVideoPlayer({
             </CardContent>
           </Card>
         </div>
+        {hasRight && (
+          <div className="lg:col-span-1">
+            <Card>
+              <CardContent className="p-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <User className="h-5 w-5 text-blue-600" />
+                      <h3 className="font-semibold text-blue-800 text-sm">Athlète à droite</h3>
+                    </div>
+                    <div className="pl-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => metadata.athleteRight.id && openEvaluationModal(metadata.athleteRight.id, `${metadata.athleteRight.firstName} ${metadata.athleteRight.lastName}`)}
+                      disabled={!metadata.athleteRight.id || evaluatedAthletes.has(metadata.athleteRight.id)}
+                      className={`h-8 w-8 rounded-lg border-2 transition-all duration-200 ${
+                        !metadata.athleteRight.id
+                          ? "border-gray-300 bg-gray-100 text-gray-400 cursor-not-allowed"
+                          : evaluatedAthletes.has(metadata.athleteRight.id)
+                          ? "border-blue-900 bg-blue-900 text-white cursor-not-allowed shadow-md"
+                          : "border-blue-900 bg-white text-blue-900 hover:bg-blue-900 hover:text-white hover:shadow-md"
+                      }`}
+                      title={
+                        !metadata.athleteRight.id
+                          ? "Aucun athlète associé"
+                          : evaluatedAthletes.has(metadata.athleteRight.id)
+                          ? "Déjà évalué"
+                          : "Évaluer cet athlète"
+                      }
+                    >
+                      <Star className={`h-4 w-4 ${evaluatedAthletes.has(metadata.athleteRight.id) ? "fill-current" : ""}`} />
+                    </Button>
+                    </div>
+                  </div>
 
-        {/* Athlète à droite - Right Column */}
-        <div className="lg:col-span-1">
-          <Card>
-            <CardContent className="p-6">
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <User className="h-5 w-5 text-blue-600" />
-                  <h3 className="font-semibold text-blue-800 text-sm">Athlète à droite</h3>
-                </div>
+                  <div className="space-y-3">
+                    <Button variant="link" className="p-0 h-auto text-left" asChild disabled={!metadata.athleteRight.id}>
+                      <Link href={metadata.athleteRight.id ? `/athletes/${metadata.athleteRight.id}` : "#"}>
+                        <div>
+                          <p className="font-medium text-base">
+                            {metadata.athleteRight.firstName} {metadata.athleteRight.lastName}
+                          </p>
+                          <p className="text-xs text-muted-foreground">Voir le profil complet</p>
+                        </div>
+                      </Link>
+                    </Button>
 
-                <div className="space-y-3">
-                  <Button variant="link" className="p-0 h-auto text-left" asChild>
-                    <Link href={`/athletes/${metadata.athleteRight.id}`}>
-                      <div>
-                        <p className="font-medium text-base">
-                          {metadata.athleteRight.firstName} {metadata.athleteRight.lastName}
-                        </p>
-                        <p className="text-xs text-muted-foreground">Voir le profil complet</p>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-3 w-3 text-muted-foreground" />
+                        <span>
+                          {metadata.athleteRight.age} ans • {metadata.athleteRight.gender}
+                        </span>
                       </div>
-                    </Link>
-                  </Button>
-
-                  <div className="space-y-2 text-xs">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-3 w-3 text-muted-foreground" />
-                      <span>
-                        {metadata.athleteRight.age} ans • {metadata.athleteRight.gender}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Sword className="h-3 w-3 text-muted-foreground" />
-                      <span className="capitalize">{metadata.athleteRight.weapon}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Trophy className="h-3 w-3 text-muted-foreground" />
-                      <span>{metadata.athleteRight.ranking}</span>
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      <p>{metadata.athleteRight.club}</p>
-                      <p>Coach: {metadata.athleteRight.coach}</p>
+                      <div className="flex items-center gap-2">
+                        <Sword className="h-3 w-3 text-muted-foreground" />
+                        <span className="capitalize">{metadata.athleteRight.weapon}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Trophy className="h-3 w-3 text-muted-foreground" />
+                        <span>{metadata.athleteRight.ranking}</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        <p>{metadata.athleteRight.club}</p>
+                        <p>Coach: {metadata.athleteRight.coach}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
+
+      {/* Evaluation Modal */}
+      <EvaluationModal
+        isOpen={evaluationModal.isOpen}
+        onClose={closeEvaluationModal}
+        videoId={metadata.id}
+        athleteId={evaluationModal.athleteId}
+        athleteName={evaluationModal.athleteName}
+        onEvaluationSubmitted={handleEvaluationSubmitted}
+      />
     </div>
   )
 } 

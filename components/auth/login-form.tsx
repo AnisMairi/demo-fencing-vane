@@ -76,13 +76,6 @@ export function LoginForm() {
               Forgot your password?
             </Link>
           </div>
-
-          <div className="text-center text-sm">
-            Don't have an account?{" "}
-            <Link href="/register" className="text-primary hover:underline">
-              Sign up
-            </Link>
-          </div>
         </form>
       </CardContent>
     </Card>

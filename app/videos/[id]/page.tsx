@@ -132,11 +132,13 @@ export default function VideoViewPage({ params }: { params: Promise<{ id: string
   const getVideoMetadata = useCallback(() => {
     if (!videoData) return null
 
+
+
     return {
       id: videoData.id.toString(),
       title: videoData.title || "Sans titre",
       athleteRight: {
-        id: videoData.athleteRight_id?.toString() || "1",
+        id: videoData.athleteRight_id?.toString() || null,
         firstName: videoData.athleteRight_name?.split(' ')[0] || "Athlète",
         lastName: videoData.athleteRight_name?.split(' ').slice(1).join(' ') || "Droit",
         age: 16,
@@ -147,7 +149,7 @@ export default function VideoViewPage({ params }: { params: Promise<{ id: string
         ranking: "#1",
       },
       athleteLeft: {
-        id: videoData.athleteLeft_id?.toString() || "2",
+        id: videoData.athleteLeft_id?.toString() || null,
         firstName: videoData.athleteLeft_name?.split(' ')[0] || "Athlète",
         lastName: videoData.athleteLeft_name?.split(' ').slice(1).join(' ') || "Gauche",
         age: 17,

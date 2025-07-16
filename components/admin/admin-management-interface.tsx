@@ -111,40 +111,6 @@ export function AdminManagementInterface() {
   const [videoStatusFilter, setVideoStatusFilter] = useState<string>("all")
   const [commentStatusFilter, setCommentStatusFilter] = useState<string>("all")
 
-  // Remove mock users array
-  // const users: User[] = [
-  //   {
-  //     id: "1",
-  //     name: "Marie Dubois",
-  //     email: "marie.dubois@email.com",
-  //     role: "local_contact",
-  //     status: "active",
-  //     joinDate: "2023-09-15",
-  //     lastActive: "il y a 2h",
-  //     videosUploaded: 12,
-  //   },
-  //   {
-  //     id: "2",
-  //     name: "Coach Martin",
-  //     email: "martin@club-escrime.fr",
-  //     role: "coach",
-  //     status: "active",
-  //     joinDate: "2023-01-10",
-  //     lastActive: "il y a 30min",
-  //     videosUploaded: 45,
-  //   },
-  //   {
-  //     id: "3",
-  //     name: "Jean Nouveau",
-  //     email: "jean.nouveau@email.com",
-  //     role: "local_contact",
-  //     status: "pending",
-  //     joinDate: "2024-01-02",
-  //     lastActive: "jamais",
-  //     videosUploaded: 0,
-  //   },
-  // ]
-
   const { getUsersExcludingAdmins, updateUserStatus, getUser, updateUserProfileAdmin } = useUserApi()
   const { getAllComments, updateCommentStatus } = useCommentApi()
   const { toast } = useToast()
@@ -265,32 +231,6 @@ export function AdminManagementInterface() {
       setProfileLoading(false)
     }
   }
-
-  // Remove mock videos array
-  // const videos: VideoItem[] = [
-  //   {
-  //     id: "1",
-  //     title: "Championnat Régional Final - Épée",
-  //     athlete: "Marie Dubois",
-  //     uploader: "Marie Dubois",
-  //     uploadDate: "2024-01-01",
-  //     status: "published",
-  //     views: 156,
-  //     comments: 8,
-  //     reports: 0,
-  //   },
-  //   {
-  //     id: "2",
-  //     title: "Entraînement Technique Controversé",
-  //     athlete: "Jean Martin",
-  //     uploader: "Coach Bernard",
-  //     uploadDate: "2024-01-02",
-  //     status: "flagged",
-  //     views: 89,
-  //     comments: 12,
-  //     reports: 3,
-  //   },
-  // ]
 
   const { getVideos, deleteVideo, updateVideoStatus, getVideo } = useVideoApi()
   const [videos, setVideos] = useState<VideoItem[]>([])
@@ -638,7 +578,7 @@ export function AdminManagementInterface() {
 
       {/* Management Tabs */}
       <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-3 ">
           <TabsTrigger value="users">Utilisateurs</TabsTrigger>
           <TabsTrigger value="videos">Vidéos</TabsTrigger>
           <TabsTrigger value="comments">Commentaires</TabsTrigger>
@@ -1097,6 +1037,8 @@ export function AdminManagementInterface() {
 
 
       </Tabs>
+
+
       <UserProfileModal
         open={showProfileModal}
         onClose={() => setShowProfileModal(false)}

@@ -42,9 +42,7 @@ export function EnhancedAthleteCard({ athlete }: EnhancedAthleteCardProps) {
               {athlete.firstName} {athlete.lastName}
             </h3>
             <p className="text-sm text-muted-foreground">{athlete.club}</p>
-            <div className="flex items-center gap-2 mt-1">
-              <Badge variant="secondary" className="text-xs">{athlete.ranking}</Badge>
-            </div>
+
           </div>
         </div>
       </div>
@@ -71,14 +69,6 @@ export function EnhancedAthleteCard({ athlete }: EnhancedAthleteCardProps) {
           </div>
         </div>
 
-        {/* Activity and skill level */}
-        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Clock className="h-3 w-3" />
-            <span>Active {athlete.recentActivity}</span>
-          </div>
-          <Badge variant="secondary" className="capitalize text-xs">{athlete.skillLevel}</Badge>
-        </div>
 
         {/* View Profile button */}
         <Button 

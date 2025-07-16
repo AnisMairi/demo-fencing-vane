@@ -27,10 +27,10 @@ export default function AthleteEvaluationPage({ params }: { params: Promise<{ id
   const [videos, setVideos] = useState<any[]>([])
   const [selectedVideoId, setSelectedVideoId] = useState<string>("")
   const [evaluation, setEvaluation] = useState({
-    technique_score: 50,
-    tactics_score: 50,
-    physical_score: 50,
-    mental_score: 50,
+    technique_score: 5,
+    tactics_score: 5,
+    physical_score: 5,
+    mental_score: 5,
     strengths: "",
     areas_for_improvement: "",
     specific_feedback: "",
@@ -76,6 +76,8 @@ export default function AthleteEvaluationPage({ params }: { params: Promise<{ id
         tactics_score: evaluation.tactics_score,
         physical_score: evaluation.physical_score,
         mental_score: evaluation.mental_score,
+        overall_score: calculateOverallScore(),
+        comments: evaluation.specific_feedback || "",
         strengths: evaluation.strengths || undefined,
         areas_for_improvement: evaluation.areas_for_improvement || undefined,
         specific_feedback: evaluation.specific_feedback || undefined,
@@ -91,10 +93,10 @@ export default function AthleteEvaluationPage({ params }: { params: Promise<{ id
       
       // Reset form
       setEvaluation({
-        technique_score: 50,
-        tactics_score: 50,
-        physical_score: 50,
-        mental_score: 50,
+        technique_score: 5,
+        tactics_score: 5,
+        physical_score: 5,
+        mental_score: 5,
         strengths: "",
         areas_for_improvement: "",
         specific_feedback: "",
@@ -125,17 +127,17 @@ export default function AthleteEvaluationPage({ params }: { params: Promise<{ id
   }
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return "text-green-600"
-    if (score >= 60) return "text-yellow-600"
+    if (score >= 8) return "text-green-600"
+    if (score >= 6) return "text-yellow-600"
     return "text-red-600"
   }
 
   const getScoreLabel = (score: number) => {
-    if (score >= 90) return "Excellent"
-    if (score >= 80) return "Très Bien"
-    if (score >= 70) return "Bien"
-    if (score >= 60) return "Satisfaisant"
-    if (score >= 50) return "Moyen"
+    if (score >= 9) return "Excellent"
+    if (score >= 8) return "Très Bien"
+    if (score >= 7) return "Bien"
+    if (score >= 6) return "Satisfaisant"
+    if (score >= 5) return "Moyen"
     return "À Améliorer"
   }
 
@@ -184,7 +186,7 @@ export default function AthleteEvaluationPage({ params }: { params: Promise<{ id
                   {calculateOverallScore()}
                 </div>
                 <div className="text-xl font-semibold">{getScoreLabel(calculateOverallScore())}</div>
-                <div className="text-muted-foreground">Note Globale</div>
+                <div className="text-muted-foreground">Note Globale (sur 10)</div>
               </div>
             </CardContent>
           </Card>
@@ -209,13 +211,13 @@ export default function AthleteEvaluationPage({ params }: { params: Promise<{ id
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span>0</span>
-                      <span>50</span>
-                      <span>100</span>
+                      <span>5</span>
+                      <span>10</span>
                     </div>
                     <Slider
                       value={[evaluation[key as keyof typeof evaluation] as number]}
                       onValueChange={(value) => setEvaluation(prev => ({ ...prev, [key]: value[0] }))}
-                      max={100}
+                      max={10}
                       step={1}
                       className="w-full"
                     />

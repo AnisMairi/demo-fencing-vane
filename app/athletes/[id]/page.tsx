@@ -1,16 +1,18 @@
-import React from "react"
-import { ProtectedRoute } from "@/components/auth/protected-route"
-import { Layout } from "@/components/layout/layout"
-import { ComprehensiveAthleteProfile } from "@/components/athlete/comprehensive-athlete-profile"
+"use client";
+import { useParams } from "next/navigation";
+import { Layout } from "@/components/layout/layout";
+import { ProtectedRoute } from "@/components/auth/protected-route";
+import { ComprehensiveAthleteProfile } from "@/components/athlete/comprehensive-athlete-profile";
 
-export default function AthleteProfilePage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = React.use(params)
-  
+export default function AthleteProfilePage() {
+  const params = useParams();
+  const id = params.id as string;
+
   return (
     <ProtectedRoute>
       <Layout>
-        <ComprehensiveAthleteProfile athleteId={resolvedParams.id} />
+        <ComprehensiveAthleteProfile athleteId={id} />
       </Layout>
     </ProtectedRoute>
-  )
+  );
 }

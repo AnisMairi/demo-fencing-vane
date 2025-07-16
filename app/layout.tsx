@@ -10,7 +10,6 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "Youth Fencing Platform",
   description: "A comprehensive platform for youth fencing video management and athlete development",
-    generator: 'v0.dev'
 }
 
 export default function RootLayout({

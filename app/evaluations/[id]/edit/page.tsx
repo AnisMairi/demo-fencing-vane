@@ -134,17 +134,17 @@ export default function EditEvaluationPage({ params }: { params: Promise<{ id: s
   }
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return "text-green-600"
-    if (score >= 60) return "text-yellow-600"
+    if (score >= 8) return "text-green-600"
+    if (score >= 6) return "text-yellow-600"
     return "text-red-600"
   }
 
   const getScoreLabel = (score: number) => {
-    if (score >= 90) return "Excellent"
-    if (score >= 80) return "Très Bien"
-    if (score >= 70) return "Bien"
-    if (score >= 60) return "Satisfaisant"
-    if (score >= 50) return "Moyen"
+    if (score >= 9) return "Excellent"
+    if (score >= 8) return "Très Bien"
+    if (score >= 7) return "Bien"
+    if (score >= 6) return "Satisfaisant"
+    if (score >= 5) return "Moyen"
     return "À Améliorer"
   }
 
@@ -252,7 +252,7 @@ export default function EditEvaluationPage({ params }: { params: Promise<{ id: s
                   <Target className="h-4 w-4 text-muted-foreground" />
                   <div>
                     <p className={`font-medium ${getScoreColor(evaluation.overall_score || 0)}`}>
-                      {evaluation.overall_score || "N/A"}/100
+                      {evaluation.overall_score || "N/A"}/10
                     </p>
                     <p className="text-sm text-muted-foreground">Note globale</p>
                   </div>
@@ -281,17 +281,17 @@ export default function EditEvaluationPage({ params }: { params: Promise<{ id: s
                   <Slider
                     value={[editedEvaluation.technique_score || 0]}
                     onValueChange={(value) => updateScore("technique_score", value)}
-                    max={100}
+                    max={10}
                     step={1}
                     className="w-full"
                   />
                   <div className="flex justify-between text-xs text-muted-foreground mt-1">
                     <span>0</span>
-                    <span>50</span>
-                    <span>100</span>
+                    <span>5</span>
+                    <span>10</span>
                   </div>
                 </div>
-                <Badge variant={editedEvaluation.technique_score && editedEvaluation.technique_score >= 80 ? "default" : "secondary"}>
+                <Badge variant={editedEvaluation.technique_score && editedEvaluation.technique_score >= 8 ? "default" : "secondary"}>
                   {editedEvaluation.technique_score ? getScoreLabel(editedEvaluation.technique_score) : "Non évalué"}
                 </Badge>
               </CardContent>
@@ -315,17 +315,17 @@ export default function EditEvaluationPage({ params }: { params: Promise<{ id: s
                   <Slider
                     value={[editedEvaluation.tactics_score || 0]}
                     onValueChange={(value) => updateScore("tactics_score", value)}
-                    max={100}
+                    max={10}
                     step={1}
                     className="w-full"
                   />
                   <div className="flex justify-between text-xs text-muted-foreground mt-1">
                     <span>0</span>
-                    <span>50</span>
-                    <span>100</span>
+                    <span>5</span>
+                    <span>10</span>
                   </div>
                 </div>
-                <Badge variant={editedEvaluation.tactics_score && editedEvaluation.tactics_score >= 80 ? "default" : "secondary"}>
+                <Badge variant={editedEvaluation.tactics_score && editedEvaluation.tactics_score >= 8 ? "default" : "secondary"}>
                   {editedEvaluation.tactics_score ? getScoreLabel(editedEvaluation.tactics_score) : "Non évalué"}
                 </Badge>
               </CardContent>
@@ -349,17 +349,17 @@ export default function EditEvaluationPage({ params }: { params: Promise<{ id: s
                   <Slider
                     value={[editedEvaluation.physical_score || 0]}
                     onValueChange={(value) => updateScore("physical_score", value)}
-                    max={100}
+                    max={10}
                     step={1}
                     className="w-full"
                   />
                   <div className="flex justify-between text-xs text-muted-foreground mt-1">
                     <span>0</span>
-                    <span>50</span>
-                    <span>100</span>
+                    <span>5</span>
+                    <span>10</span>
                   </div>
                 </div>
-                <Badge variant={editedEvaluation.physical_score && editedEvaluation.physical_score >= 80 ? "default" : "secondary"}>
+                <Badge variant={editedEvaluation.physical_score && editedEvaluation.physical_score >= 8 ? "default" : "secondary"}>
                   {editedEvaluation.physical_score ? getScoreLabel(editedEvaluation.physical_score) : "Non évalué"}
                 </Badge>
               </CardContent>
@@ -383,17 +383,17 @@ export default function EditEvaluationPage({ params }: { params: Promise<{ id: s
                   <Slider
                     value={[editedEvaluation.mental_score || 0]}
                     onValueChange={(value) => updateScore("mental_score", value)}
-                    max={100}
+                    max={10}
                     step={1}
                     className="w-full"
                   />
                   <div className="flex justify-between text-xs text-muted-foreground mt-1">
                     <span>0</span>
-                    <span>50</span>
-                    <span>100</span>
+                    <span>5</span>
+                    <span>10</span>
                   </div>
                 </div>
-                <Badge variant={editedEvaluation.mental_score && editedEvaluation.mental_score >= 80 ? "default" : "secondary"}>
+                <Badge variant={editedEvaluation.mental_score && editedEvaluation.mental_score >= 8 ? "default" : "secondary"}>
                   {editedEvaluation.mental_score ? getScoreLabel(editedEvaluation.mental_score) : "Non évalué"}
                 </Badge>
               </CardContent>
@@ -411,7 +411,7 @@ export default function EditEvaluationPage({ params }: { params: Promise<{ id: s
                   {calculateOverallScore()}
                 </div>
                 <div className="text-xl font-semibold">{getScoreLabel(calculateOverallScore())}</div>
-                <div className="text-muted-foreground">Note Globale Calculée</div>
+                <div className="text-muted-foreground">Note Globale Calculée (sur 10)</div>
               </div>
             </CardContent>
           </Card>
