@@ -3,6 +3,7 @@ import { Layout } from "@/components/layout/layout"
 import { DashboardStats } from "@/components/dashboard/dashboard-stats"
 import { RoleBasedContent } from "@/components/dashboard/role-based-content"
 import { RecentVideosTable } from "@/components/dashboard/recent-videos-table"
+import { TopAthletes } from "@/components/dashboard/top-athletes"
 import Link from "next/link"
 
 export default function DashboardPage() {
@@ -19,6 +20,7 @@ export default function DashboardPage() {
             <DashboardStats />
             <RoleBasedContent />
             <RecentVideosTable />
+            <TopAthletes />
           </div>
 
           {/* Footer */}

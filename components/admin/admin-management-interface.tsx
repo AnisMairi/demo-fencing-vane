@@ -119,11 +119,29 @@ export function AdminManagementInterface() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    setLoading(true)
-    getUsersExcludingAdmins()
-      .then(setUsers)
-      .catch(() => setError("Erreur lors du chargement des utilisateurs"))
-      .finally(() => setLoading(false))
+    const loadUsers = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        
+        // Mode démo : utiliser les données de démo au lieu de l'API
+        const { DEMO_USERS_LIST } = await import("@/lib/demo-users-list")
+        setUsers(DEMO_USERS_LIST)
+      } catch (err) {
+        console.error("Error loading users:", err)
+        // Fallback : essayer l'API si disponible
+        try {
+          const apiUsers = await getUsersExcludingAdmins()
+          setUsers(apiUsers)
+        } catch (apiErr) {
+          setError("Erreur lors du chargement des utilisateurs")
+        }
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    loadUsers()
 
     // Load videos immediately for stats
     getVideos()
@@ -221,8 +239,22 @@ export function AdminManagementInterface() {
     setShowProfileModal(true)
     
     try {
-      const user = await getUser(Number(userId))
-      setSelectedUser(user)
+      // Mode démo : utiliser les données de démo au lieu de l'API
+      const { DEMO_USERS_LIST } = await import("@/lib/demo-users-list")
+      const demoUser = DEMO_USERS_LIST.find(u => u.id === userId || String(u.id) === String(userId))
+      
+      if (demoUser) {
+        setSelectedUser(demoUser as User)
+      } else {
+        // Fallback : essayer l'API si disponible
+        try {
+          const user = await getUser(Number(userId))
+          setSelectedUser(user)
+        } catch (apiErr) {
+          setProfileError("Impossible de charger le profil utilisateur")
+          toast({ title: "Erreur", description: "Impossible de charger le profil utilisateur.", variant: "destructive" })
+        }
+      }
     } catch (error) {
       console.error('Error fetching user:', error)
       setProfileError("Impossible de charger le profil utilisateur")
@@ -516,8 +548,23 @@ export function AdminManagementInterface() {
         avatar_url: selectedUser.avatar_url || undefined,
       })
       // Refresh users list to update last activity
-      const updatedUsers = await getUsersExcludingAdmins()
-      setUsers(updatedUsers)
+      // Mode démo : recharger depuis les données de démo
+      try {
+        const { DEMO_USERS_LIST } = await import("@/lib/demo-users-list")
+        // Mettre à jour l'utilisateur modifié dans la liste
+        const updatedList = DEMO_USERS_LIST.map(user => 
+          user.id === selectedUser.id ? { ...user, ...selectedUser, updated_at: new Date().toISOString() } : user
+        )
+        setUsers(updatedList)
+      } catch (err) {
+        // Fallback : essayer l'API si disponible
+        try {
+          const updatedUsers = await getUsersExcludingAdmins()
+          setUsers(updatedUsers)
+        } catch (apiErr) {
+          console.error("Error refreshing users:", apiErr)
+        }
+      }
       toast({ title: "Profil mis à jour", description: "Les informations de l'utilisateur ont été sauvegardées." })
       setShowProfileModal(false)
     } catch (error) {
