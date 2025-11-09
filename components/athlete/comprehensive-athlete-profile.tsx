@@ -37,7 +37,6 @@ import {
   PolarRadiusAxis,
   Radar,
 } from "recharts"
-import { useAthleteApi } from "@/hooks/use-athlete-api";
 
 interface AthleteProfile {
   id: string
@@ -99,24 +98,77 @@ interface ComprehensiveAthleteProfileProps {
 
 export function ComprehensiveAthleteProfile({ athleteId }: ComprehensiveAthleteProfileProps) {
   const [activeTab, setActiveTab] = useState("overview");
-  const { getAthlete } = useAthleteApi();
   const [athlete, setAthlete] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setLoading(true);
-    setError(null);
-    getAthlete(Number(athleteId))
-      .then((data) => {
-        setAthlete(data);
+    // Mode démo : utiliser les données de démo au lieu de l'API
+    const loadAthlete = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        // Import dynamique pour éviter les erreurs de build
+        const { DEMO_ATHLETES } = await import("@/lib/demo-athletes");
+        const demoAthlete = DEMO_ATHLETES.find(a => a.id === athleteId);
+        
+        if (!demoAthlete) {
+          setError("Athlète non trouvé");
+          setLoading(false);
+          return;
+        }
+
+        // Charger les vidéos de démo pour cet athlète
+        const { DEMO_VIDEOS } = await import("@/lib/demo-videos");
+        const athleteFullName = `${demoAthlete.first_name} ${demoAthlete.last_name}`;
+        const athleteVideos = DEMO_VIDEOS.filter(v => 
+          v.athlete === athleteFullName || v.athlete.includes(athleteFullName)
+        );
+
+        // Transformer les données de démo en format attendu
+        const transformedAthlete = {
+          id: demoAthlete.id,
+          first_name: demoAthlete.first_name,
+          last_name: demoAthlete.last_name,
+          date_of_birth: demoAthlete.date_of_birth,
+          gender: demoAthlete.gender,
+          weapon: demoAthlete.weapon,
+          skill_level: demoAthlete.skill_level,
+          avatar_url: demoAthlete.avatar_url,
+          videos_count: demoAthlete.videos_count,
+          region: demoAthlete.region,
+          club: demoAthlete.club,
+          coach: demoAthlete.coach || "",
+          ranking: demoAthlete.ranking || "-",
+          email: `${demoAthlete.first_name.toLowerCase()}.${demoAthlete.last_name.toLowerCase()}@example.com`,
+          phone: "01 23 45 67 89",
+          created_at: new Date().toISOString(),
+          bio: `Athlète prometteur en ${demoAthlete.weapon === "epee" ? "épée" : demoAthlete.weapon === "foil" ? "fleuret" : "sabre"} au club ${demoAthlete.club}.`,
+          videos: athleteVideos.map(v => ({
+            id: v.id,
+            title: v.title,
+            thumbnail: v.thumbnail,
+            duration: v.duration,
+            views: v.views,
+            comments: v.comments,
+            athlete: v.athlete,
+            uploader: v.uploader,
+            uploadedAt: v.uploadedAt,
+          })),
+        };
+        
+        setAthlete(transformedAthlete);
+      } catch (err) {
+        console.error('Error loading athlete:', err);
+        setError("Échec du chargement du profil de l'athlète");
+        setAthlete(null);
+      } finally {
         setLoading(false);
-      })
-      .catch((err) => {
-        setError("Failed to load athlete profile");
-        setLoading(false);
-      });
-  }, [athleteId, getAthlete]);
+      }
+    };
+    
+    loadAthlete();
+  }, [athleteId]);
 
   // Helper to map API athlete to UI structure
   const mapAthlete = (apiAthlete: any): AthleteProfile => {
@@ -322,7 +374,7 @@ export function ComprehensiveAthleteProfile({ athleteId }: ComprehensiveAthleteP
   };
 
   if (loading) {
-    return <div className="text-center py-10">Loading athlete profile...</div>;
+    return <div className="text-center py-10">Chargement du profil de l'athlète...</div>;
   }
   if (error) {
     return <div className="text-center text-red-500 py-10">{error}</div>;

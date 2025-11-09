@@ -31,35 +31,30 @@ export default function VideosPage() {
   const [perPage] = useState(16)
   const [totalPages, setTotalPages] = useState(1)
   const [totalResults, setTotalResults] = useState(0)
-  const [filters, setFilters] = useState<any>({})
+  const [filters, setFilters] = useState<any>({
+    search: "",
+    weapon: "allWeapons",
+    gender: "allGenders",
+    competitionLevel: "allLevels",
+    competitionType: "allCompetitions",
+    year: "allYears",
+    region: "allRegions",
+    department: "allDepartments",
+    club: "allClubs",
+  })
 
   // Memoize filters to avoid infinite loop
   const stableFilters = useMemo(() => filters, [JSON.stringify(filters)])
 
   useEffect(() => {
+    // Mode démo : utiliser les données de démo au lieu de l'API
     const loadVideos = async () => {
       try {
         setLoading(true)
         setError(null)
-        // Fetch all videos once
-        const response = await getVideos()
-        const videosData = response.videos || []
-        const transformedVideos = videosData.map((video: any) => ({
-          id: video.id.toString(),
-          title: video.title || 'Sans titre',
-          thumbnail: video.thumbnail_path 
-            ? `http://localhost:8000/${video.thumbnail_path}` 
-            : "https://placehold.co/400x225?text=Video",
-          duration: video.duration ? formatDuration(video.duration) : "00:00",
-          views: video.view_count || 0,
-          comments: video.comment_count || 0,
-          athlete: getAthleteDisplayName(video),
-          uploader: video.uploader_name || `Utilisateur #${video.uploader_id}` || 'Utilisateur inconnu',
-          uploadedAt: formatRelativeTime(video.created_at),
-          competition_date: video.competition_date,
-          weapon_type: video.weapon_type,
-        }))
-        setAllVideos(transformedVideos)
+        // Import dynamique pour éviter les erreurs de build
+        const { DEMO_VIDEOS } = await import("@/lib/demo-videos")
+        setAllVideos(DEMO_VIDEOS)
       } catch (err) {
         console.error('Error loading videos:', err)
         setError("Erreur lors du chargement des vidéos")
@@ -105,6 +100,18 @@ export default function VideosPage() {
         const year = new Date(v.competition_date).getFullYear().toString()
         return year === filters.year
       })
+    }
+    // Region filter
+    if (filters.region && filters.region !== 'allRegions') {
+      filtered = filtered.filter(v => v.region === filters.region)
+    }
+    // Department filter
+    if (filters.department && filters.department !== 'allDepartments') {
+      filtered = filtered.filter(v => v.department === filters.department)
+    }
+    // Club filter
+    if (filters.club && filters.club !== 'allClubs') {
+      filtered = filtered.filter(v => v.club === filters.club)
     }
     setTotalResults(filtered.length)
     setTotalPages(Math.max(1, Math.ceil(filtered.length / perPage)))

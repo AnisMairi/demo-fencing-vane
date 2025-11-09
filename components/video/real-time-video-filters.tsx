@@ -14,6 +14,9 @@ interface FilterState {
   competitionLevel: string
   competitionType: string
   year: string
+  region: string
+  department: string
+  club: string
 }
 
 interface RealTimeVideoFiltersProps {
@@ -119,6 +122,9 @@ export function RealTimeVideoFilters({ filters, setFilters, onFiltersChange, tot
       competitionLevel: "allLevels",
       competitionType: "allCompetitions",
       year: "allYears",
+      region: "allRegions",
+      department: "allDepartments",
+      club: "allClubs",
     })
   }
 
@@ -130,6 +136,9 @@ export function RealTimeVideoFilters({ filters, setFilters, onFiltersChange, tot
     if (filters.competitionLevel && filters.competitionLevel !== "allLevels") count++
     if (filters.competitionType && filters.competitionType !== "allCompetitions") count++
     if (filters.year && filters.year !== "allYears") count++
+    if (filters.region && filters.region !== "allRegions") count++
+    if (filters.department && filters.department !== "allDepartments") count++
+    if (filters.club && filters.club !== "allClubs") count++
     return count
   }
 
@@ -150,6 +159,9 @@ export function RealTimeVideoFilters({ filters, setFilters, onFiltersChange, tot
         competitionLevel: "allLevels",
         competitionType: "allCompetitions",
         year: "allYears",
+        region: "allRegions",
+        department: "allDepartments",
+        club: "allClubs",
       }
       updateFilter(key, defaultValues[key] || "")
     }
@@ -160,7 +172,7 @@ export function RealTimeVideoFilters({ filters, setFilters, onFiltersChange, tot
       {/* Main Filter Bar */}
       <div className="flex flex-wrap items-center gap-3 p-4 bg-muted/20 rounded-lg">
         {/* Search with real-time filtering */}
-        <div className="flex flex-col min-w-[200px]">
+        <div className="flex flex-col flex-1 min-w-[180px] max-w-[250px]">
           <label className="block text-xs font-medium mb-1">Recherche</label>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -184,7 +196,7 @@ export function RealTimeVideoFilters({ filters, setFilters, onFiltersChange, tot
         </div>
 
         {/* Weapon Filter */}
-        <div className="flex flex-col w-[120px]">
+        <div className="flex flex-col w-[110px]">
           <label className="block text-xs font-medium mb-1">Arme</label>
           <Select value={filters.weapon} onValueChange={(value) => updateFilter("weapon", value)}>
             <SelectTrigger>
@@ -200,7 +212,7 @@ export function RealTimeVideoFilters({ filters, setFilters, onFiltersChange, tot
         </div>
 
         {/* Gender Filter */}
-        <div className="flex flex-col w-[120px]">
+        <div className="flex flex-col w-[110px]">
           <label className="block text-xs font-medium mb-1">Sexe</label>
           <Select value={filters.gender} onValueChange={(value) => updateFilter("gender", value)}>
             <SelectTrigger>
@@ -215,7 +227,7 @@ export function RealTimeVideoFilters({ filters, setFilters, onFiltersChange, tot
         </div>
 
         {/* Competition Level Filter */}
-        <div className="flex flex-col w-[180px]">
+        <div className="flex flex-col w-[160px]">
           <label className="block text-xs font-medium mb-1">Niveau compétition</label>
           <Select value={filters.competitionLevel} onValueChange={value => {
             updateFilter("competitionLevel", value)
@@ -234,7 +246,7 @@ export function RealTimeVideoFilters({ filters, setFilters, onFiltersChange, tot
         </div>
         {/* Competition Type Filter (only show if level selected) */}
         {filters.competitionLevel && filters.competitionLevel !== "allLevels" && (
-          <div className="flex flex-col w-[220px]">
+          <div className="flex flex-col w-[200px]">
             <label className="block text-xs font-medium mb-1">Compétition</label>
             <Select value={filters.competitionType} onValueChange={value => updateFilter("competitionType", value)}>
               <SelectTrigger>
@@ -251,7 +263,7 @@ export function RealTimeVideoFilters({ filters, setFilters, onFiltersChange, tot
         )}
 
         {/* Year Filter UI */}
-        <div className="flex flex-col w-[120px]">
+        <div className="flex flex-col w-[100px]">
           <label className="block text-xs font-medium mb-1">Année</label>
           <Select value={filters.year} onValueChange={value => updateFilter("year", value)}>
             <SelectTrigger>
@@ -269,6 +281,73 @@ export function RealTimeVideoFilters({ filters, setFilters, onFiltersChange, tot
           </Select>
         </div>
 
+        {/* Region Filter */}
+        <div className="flex flex-col w-[170px]">
+          <label className="block text-xs font-medium mb-1">Région</label>
+          <Select value={filters.region || "allRegions"} onValueChange={value => updateFilter("region", value)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Région" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="allRegions">Toutes les régions</SelectItem>
+              <SelectItem value="Île-de-France">Île-de-France</SelectItem>
+              <SelectItem value="Auvergne-Rhône-Alpes">Auvergne-Rhône-Alpes</SelectItem>
+              <SelectItem value="Provence-Alpes-Côte d'Azur">Provence-Alpes-Côte d'Azur</SelectItem>
+              <SelectItem value="Nouvelle-Aquitaine">Nouvelle-Aquitaine</SelectItem>
+              <SelectItem value="Occitanie">Occitanie</SelectItem>
+              <SelectItem value="Hauts-de-France">Hauts-de-France</SelectItem>
+              <SelectItem value="Grand Est">Grand Est</SelectItem>
+              <SelectItem value="Normandie">Normandie</SelectItem>
+              <SelectItem value="Bretagne">Bretagne</SelectItem>
+              <SelectItem value="Pays de la Loire">Pays de la Loire</SelectItem>
+              <SelectItem value="Centre-Val de Loire">Centre-Val de Loire</SelectItem>
+              <SelectItem value="Bourgogne-Franche-Comté">Bourgogne-Franche-Comté</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Department Filter */}
+        <div className="flex flex-col w-[150px]">
+          <label className="block text-xs font-medium mb-1">Département</label>
+          <Select value={filters.department || "allDepartments"} onValueChange={value => updateFilter("department", value)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Département" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="allDepartments">Tous les départements</SelectItem>
+              <SelectItem value="75">75 - Paris</SelectItem>
+              <SelectItem value="69">69 - Rhône</SelectItem>
+              <SelectItem value="13">13 - Bouches-du-Rhône</SelectItem>
+              <SelectItem value="06">06 - Alpes-Maritimes</SelectItem>
+              <SelectItem value="33">33 - Gironde</SelectItem>
+              <SelectItem value="31">31 - Haute-Garonne</SelectItem>
+              <SelectItem value="59">59 - Nord</SelectItem>
+              <SelectItem value="44">44 - Loire-Atlantique</SelectItem>
+              <SelectItem value="67">67 - Bas-Rhin</SelectItem>
+              <SelectItem value="76">76 - Seine-Maritime</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Club Filter */}
+        <div className="flex flex-col w-[190px]">
+          <label className="block text-xs font-medium mb-1">Club</label>
+          <Select value={filters.club || "allClubs"} onValueChange={value => updateFilter("club", value)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Club" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="allClubs">Tous les clubs</SelectItem>
+              <SelectItem value="Cercle d'Escrime de Paris">Cercle d'Escrime de Paris</SelectItem>
+              <SelectItem value="AS Escrime Lyon">AS Escrime Lyon</SelectItem>
+              <SelectItem value="Cercle d'Escrime Marseille">Cercle d'Escrime Marseille</SelectItem>
+              <SelectItem value="Club Escrime Nice">Club Escrime Nice</SelectItem>
+              <SelectItem value="Cercle d'Escrime Bordeaux">Cercle d'Escrime Bordeaux</SelectItem>
+              <SelectItem value="AS Escrime Toulouse">AS Escrime Toulouse</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* Clear Filters Button */}
         <div className="flex flex-col justify-end">
           <Button variant="outline" size="sm" onClick={clearFilters} className="mt-5">
@@ -281,7 +360,7 @@ export function RealTimeVideoFilters({ filters, setFilters, onFiltersChange, tot
       {getActiveFilterCount() > 0 && (
         <div className="flex flex-wrap gap-2">
           {Object.entries(filters).map(([key, value]) => {
-            if (!value || (typeof value === "string" && ((key === "year") ? false : value.startsWith("all")))) return null
+            if (!value || (typeof value === "string" && ((key === "year" || key === "region" || key === "department" || key === "club") ? false : value.startsWith("all")))) return null
             if (key === "year") {
               if (filters.year === "allYears") return null
               return (
@@ -339,6 +418,54 @@ export function RealTimeVideoFilters({ filters, setFilters, onFiltersChange, tot
                   <X
                     className="h-3 w-3 cursor-pointer hover:text-destructive"
                     onClick={() => updateFilter("competitionType", "allCompetitions")}
+                  />
+                </Badge>
+              )
+            }
+            if (key === "region") {
+              if (filters.region === "allRegions") return null
+              return (
+                <Badge key="region" variant="secondary" className="gap-1">
+                  <span>Région:</span>
+                  <span>{filters.region}</span>
+                  <X
+                    className="h-3 w-3 cursor-pointer hover:text-destructive"
+                    onClick={() => updateFilter("region", "allRegions")}
+                  />
+                </Badge>
+              )
+            }
+            if (key === "department") {
+              if (filters.department === "allDepartments") return null
+              // Get department name for display
+              const deptNames: Record<string, string> = {
+                "75": "75 - Paris",
+                "69": "69 - Rhône",
+                "13": "13 - Bouches-du-Rhône",
+                "06": "06 - Alpes-Maritimes",
+                "33": "33 - Gironde",
+                "31": "31 - Haute-Garonne",
+              }
+              return (
+                <Badge key="department" variant="secondary" className="gap-1">
+                  <span>Département:</span>
+                  <span>{deptNames[filters.department] || filters.department}</span>
+                  <X
+                    className="h-3 w-3 cursor-pointer hover:text-destructive"
+                    onClick={() => updateFilter("department", "allDepartments")}
+                  />
+                </Badge>
+              )
+            }
+            if (key === "club") {
+              if (filters.club === "allClubs") return null
+              return (
+                <Badge key="club" variant="secondary" className="gap-1">
+                  <span>Club:</span>
+                  <span>{filters.club}</span>
+                  <X
+                    className="h-3 w-3 cursor-pointer hover:text-destructive"
+                    onClick={() => updateFilter("club", "allClubs")}
                   />
                 </Badge>
               )

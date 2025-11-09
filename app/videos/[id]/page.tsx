@@ -88,32 +88,52 @@ export default function VideoViewPage({ params }: { params: Promise<{ id: string
     }
   }, [])
 
-  // Load video data and comments
+  // Load video data and comments - Mode démo
   useEffect(() => {
     const loadVideoData = async () => {
       try {
         setLoading(true)
         setError(null)
 
-        // Fetch video data
-        const videoResponse = await getVideo(parseInt(id))
-        setVideoData(videoResponse)
+        // Mode démo : utiliser les données de démo
+        const { DEMO_VIDEOS } = await import("@/lib/demo-videos")
+        const demoVideo = DEMO_VIDEOS.find(v => v.id === id)
+        
+        if (!demoVideo) {
+          setError("Vidéo non trouvée")
+          setLoading(false)
+          return
+        }
 
-        // Fetch comments
-        const commentsResponse = await getVideoComments(parseInt(id), { limit: 50 })
-        const transformedComments = commentsResponse.comments.map((comment: any) => ({
-          id: comment.id.toString(),
-          author: {
-            name: comment.author_name || 'Utilisateur inconnu',
-            avatar: "https://placehold.co/64x64?text=" + (comment.author_name?.charAt(0) || 'U'),
-            role: "local_contact" as const,
-          },
-          content: comment.content,
-          timestamp: formatRelativeTime(comment.created_at),
-          likes: 0, // Backend doesn't have likes yet
-          replies: [], // Backend doesn't have replies yet
-        }))
-        setComments(transformedComments)
+        // Transformer les données de démo en format attendu
+        const transformedVideo = {
+          id: demoVideo.id,
+          title: demoVideo.title,
+          file_path: "", // Pas de fichier en démo
+          thumbnail_path: demoVideo.thumbnail,
+          duration: parseDuration(demoVideo.duration),
+          view_count: demoVideo.views,
+          comment_count: demoVideo.comments,
+          athleteRight_name: demoVideo.athlete.includes(" vs ") 
+            ? demoVideo.athlete.split(" vs ")[0]
+            : demoVideo.athlete,
+          athleteLeft_name: demoVideo.athlete.includes(" vs ")
+            ? demoVideo.athlete.split(" vs ")[1]
+            : null,
+          athleteRight_id: null,
+          athleteLeft_id: null,
+          weapon_type: demoVideo.weapon_type,
+          competition_name: demoVideo.competition_name,
+          competition_date: demoVideo.competition_date,
+          uploader_name: demoVideo.uploader,
+          uploader_id: 1,
+          created_at: new Date().toISOString(),
+        }
+        
+        setVideoData(transformedVideo)
+        
+        // Pas de commentaires en démo
+        setComments([])
 
       } catch (err) {
         console.error('Error loading video data:', err)
@@ -126,7 +146,13 @@ export default function VideoViewPage({ params }: { params: Promise<{ id: string
     if (id) {
       loadVideoData()
     }
-  }, [id, formatRelativeTime]) // Removed getVideo and getVideoComments from dependencies
+  }, [id])
+
+  // Helper to parse duration string "MM:SS" to seconds
+  const parseDuration = (duration: string): number => {
+    const [minutes, seconds] = duration.split(':').map(Number)
+    return minutes * 60 + seconds
+  }
 
   // Transform video data for the player
   const getVideoMetadata = useCallback(() => {
@@ -283,15 +309,28 @@ export default function VideoViewPage({ params }: { params: Promise<{ id: string
       <Layout>
         <div className="space-y-6">
           <div ref={videoContainerRef} className="transition-all duration-500 ease-out">
-            <EnhancedVideoPlayer
-              videoRef={videoRef}
-              videoUrl={`http://localhost:8000/${videoData.file_path}`}
-              metadata={videoMetadata}
-              onTimeUpdate={(time) => setCurrentTime(time)}
-              onSeekToTime={handleSeekToTime}
-              onAddTimeStamp={handleAddTimeStamp}
-              onAddTag={handleAddTag}
-            />
+            {/* Message de démo à la place de la vidéo */}
+            <div className="bg-muted/50 border border-border rounded-lg p-8 text-center space-y-4">
+              <div className="text-4xl mb-4">🎬</div>
+              <h2 className="text-2xl font-bold">Fonctionnalité désactivée pour cette démo</h2>
+              <p className="text-muted-foreground max-w-2xl mx-auto">
+                Cette fonctionnalité a été désactivée pour cette démo. En production, vous pourriez visionner la vidéo complète de <strong>{videoMetadata?.title || "cette vidéo"}</strong> ici.
+              </p>
+              {videoMetadata && (
+                <div className="pt-4">
+                  <div className="inline-block bg-card border border-border rounded-lg p-4 text-left">
+                    <p className="text-sm font-medium mb-2">Informations de la vidéo :</p>
+                    <ul className="text-sm text-muted-foreground space-y-1">
+                      <li>• Titre : {videoMetadata.title}</li>
+                      <li>• Athlète : {videoMetadata.athleteRight.firstName} {videoMetadata.athleteRight.lastName}</li>
+                      <li>• Compétition : {videoMetadata.competitionType}</li>
+                      <li>• Durée : {videoMetadata.duration}</li>
+                      <li>• Vues : {videoMetadata.views.toLocaleString()}</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           <VideoComments

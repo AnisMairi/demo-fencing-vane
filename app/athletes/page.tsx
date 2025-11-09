@@ -35,18 +35,24 @@ export default function AthletesPage() {
   };
 
   useEffect(() => {
-    setLoading(true);
-    setError(null);
-    getAthletes()
-      .then((data) => {
-        setAthletes(data);
+    // Mode démo : utiliser les données de démo au lieu de l'API
+    const loadAthletes = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        // Import dynamique pour éviter les erreurs de build
+        const { DEMO_ATHLETES } = await import("@/lib/demo-athletes");
+        setAthletes(DEMO_ATHLETES);
+      } catch (err) {
+        console.error('Error loading athletes:', err);
+        setError("Échec du chargement des athlètes");
+        setAthletes([]);
+      } finally {
         setLoading(false);
-      })
-      .catch((err) => {
-        setError("Failed to load athletes");
-        setLoading(false);
-      });
-  }, [getAthletes]);
+      }
+    };
+    loadAthletes();
+  }, []);
 
   // Helper to map API athlete to EnhancedAthleteCard props
   const mapAthlete = (athlete: any) => {
@@ -89,9 +95,13 @@ export default function AthletesPage() {
       (athlete.club && athlete.club.toLowerCase().includes(search)) ||
       (athlete.region && athlete.region.toLowerCase().includes(search));
 
-    // Weapon filter
+    // Weapon filter (normalize weapon names)
+    const normalizeWeapon = (weapon: string) => {
+      if (weapon === "épée" || weapon === "epee") return "epee";
+      return weapon;
+    };
     const matchesWeapon =
-      weaponFilter === "all-weapons" || athlete.weapon === weaponFilter;
+      weaponFilter === "all-weapons" || normalizeWeapon(athlete.weapon) === normalizeWeapon(weaponFilter);
 
     // Skill filter
     const matchesSkill =
@@ -160,7 +170,7 @@ export default function AthletesPage() {
                     <SelectItem value="all-weapons">Toutes les armes</SelectItem>
                     <SelectItem value="foil">Fleuret</SelectItem>
                     <SelectItem value="sabre">Sabre</SelectItem>
-                    <SelectItem value="épée">Épée</SelectItem>
+                    <SelectItem value="epee">Épée</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -196,12 +206,13 @@ export default function AthletesPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all-regions">Toutes les régions</SelectItem>
-                    <SelectItem value="paris">Paris</SelectItem>
-                    <SelectItem value="lyon">Lyon</SelectItem>
-                    <SelectItem value="marseille">Marseille</SelectItem>
-                    <SelectItem value="toulouse">Toulouse</SelectItem>
-                    <SelectItem value="bordeaux">Bordeaux</SelectItem>
-                    <SelectItem value="nice">Nice</SelectItem>
+                    <SelectItem value="Île-de-France">Île-de-France</SelectItem>
+                    <SelectItem value="Auvergne-Rhône-Alpes">Auvergne-Rhône-Alpes</SelectItem>
+                    <SelectItem value="Provence-Alpes-Côte d'Azur">Provence-Alpes-Côte d'Azur</SelectItem>
+                    <SelectItem value="Occitanie">Occitanie</SelectItem>
+                    <SelectItem value="Nouvelle-Aquitaine">Nouvelle-Aquitaine</SelectItem>
+                    <SelectItem value="Hauts-de-France">Hauts-de-France</SelectItem>
+                    <SelectItem value="Grand Est">Grand Est</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button variant="outline" onClick={resetFilters} className="h-10 w-[140px]" type="button">
@@ -241,7 +252,7 @@ export default function AthletesPage() {
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-primary">
-                    {athletes.reduce((sum, athlete) => sum + athlete.videosCount, 0)}
+                    {athletes.reduce((sum, athlete) => sum + (athlete.videos_count || 0), 0)}
                   </div>
                   <div className="text-sm text-muted-foreground">Nombre total de vidéos</div>
                 </div>
