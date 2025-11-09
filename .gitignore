@@ -41,4 +41,7 @@ yarn-error.log*
 next-env.d.ts
 
 #Webstorm
-.idea   
+.idea
+
+# Deploy files (scripts utiles pour le déploiement)
+# Les scripts .sh sont utiles et peuvent être commités   
