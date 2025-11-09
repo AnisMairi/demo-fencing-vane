@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import { jwtDecode } from "jwt-decode"
+import { validateDemoCredentials, generateMockToken, decodeMockToken } from "./demo-users"
 
 export type UserRole = "local_contact" | "coach" | "administrator"
 
@@ -27,79 +27,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
+  const logout = () => {
+    // Mode démo : logout local simple
+    setUser(null)
+    localStorage.removeItem("user")
+    localStorage.removeItem("access_token")
+  }
+
   useEffect(() => {
-    // Check for existing session
+    // Check for existing session (mode démo)
     const savedUser = localStorage.getItem("user")
     const accessToken = localStorage.getItem("access_token")
-    let logoutTimeout: number | null = null
 
     if (savedUser && accessToken) {
       try {
-        const decoded: any = jwtDecode(accessToken)
+        const decoded = decodeMockToken(accessToken)
         // Check if token is expired
         const now = Date.now() / 1000
-        if (decoded.exp && decoded.exp < now) {
-          // Try to refresh the token using the cookie
-          refreshAccessToken().then((success) => {
-            if (!success) {
-              logout()
-            }
-          })
-        } else {
+        if (decoded && decoded.exp && decoded.exp < now) {
+          // Token expired, clear session
+          logout()
+        } else if (decoded) {
+          // Valid token, restore user
           setUser(JSON.parse(savedUser))
-          // Set up auto-logout when token expires
-          if (decoded.exp) {
-            const msUntilExpiry = (decoded.exp - now) * 1000
-            logoutTimeout = setTimeout(() => {
-              refreshAccessToken().then((success) => {
-                if (!success) {
-                  logout()
-                }
-              })
-            }, msUntilExpiry)
-          }
+        } else {
+          logout()
         }
       } catch (e) {
         logout()
       }
     }
     setIsLoading(false)
-    return () => {
-      if (logoutTimeout) clearTimeout(logoutTimeout)
-    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Refresh token logic - now uses cookies automatically
+  // Refresh token logic - mode démo (simule le refresh)
   const refreshAccessToken = async () => {
     try {
-      const response = await fetch("http://localhost:8000/api/v1/auth/refresh", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        // Include credentials to send cookies
-        credentials: "include",
-      })
-      
-      if (!response.ok) {
-        logout()
-        return false
-      }
-      
-      const data = await response.json()
-      localStorage.setItem("access_token", data.access_token)
-      
-      // Optionally update user info
-      const decoded: any = jwtDecode(data.access_token)
-      const userInfo: User = {
-        id: decoded.sub || "",
-        email: decoded.email || "",
-        name: decoded.email ? decoded.email.split("@")[0] : "",
-        role: decoded.role || "local_contact",
-      }
-      setUser(userInfo)
-      localStorage.setItem("user", JSON.stringify(userInfo))
+      const savedUser = localStorage.getItem("user")
+      if (savedUser) {
+        const userInfo: User = JSON.parse(savedUser)
+        // Génère un nouveau token mock
+        const newToken = generateMockToken(userInfo)
+        localStorage.setItem("access_token", newToken)
       return true
+      }
+      return false
     } catch (e) {
       logout()
       return false
@@ -109,65 +82,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     setIsLoading(true)
     try {
-      const response = await fetch("http://localhost:8000/api/v1/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-        // Include credentials to receive cookies
-        credentials: "include",
-      })
+      // Mode démo : validation locale sans backend
+      const userInfo = validateDemoCredentials(email, password)
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        if (errorData.detail === "Incorrect email or password") {
-          throw new Error("wrong_credentials")
-        } else if (errorData.detail && errorData.detail.toLowerCase().includes("not active")) {
-          throw new Error("account_suspended")
-        } else {
-          throw new Error(errorData.detail || "Login failed")
-        }
+      if (!userInfo) {
+        throw new Error("wrong_credentials")
       }
 
-      const data = await response.json()
-      // Save only access token (refresh token is in cookie)
-      localStorage.setItem("access_token", data.access_token)
-
-      // Decode JWT to get user info
-      const decoded: any = jwtDecode(data.access_token)
-      const userInfo: User = {
-        id: decoded.sub || "",
-        email: decoded.email || email,
-        name: decoded.email ? decoded.email.split("@")[0] : email.split("@")[0],
-        role: decoded.role || "local_contact",
-      }
-      setUser(userInfo)
+      // Génère un token mock
+      const mockToken = generateMockToken(userInfo)
+      localStorage.setItem("access_token", mockToken)
       localStorage.setItem("user", JSON.stringify(userInfo))
-    } catch (err) {
+      setUser(userInfo)
+    } catch (err: any) {
+      // Re-throw errors
       throw err
     } finally {
       setIsLoading(false)
     }
   }
 
-  const logout = async () => {
-    try {
-      // Call logout endpoint to clear refresh token cookie
-      await fetch("http://localhost:8000/api/v1/auth/logout", {
-        method: "POST",
-        credentials: "include",
-      })
-    } catch (e) {
-      // Continue with logout even if API call fails
-      console.error("Logout API call failed:", e)
-    }
-    
-    setUser(null)
-    localStorage.removeItem("user")
-    localStorage.removeItem("access_token")
-    // Note: refresh token is cleared by the server via cookie
-  }
 
   return <AuthContext.Provider value={{ user, login, logout, isLoading, refreshAccessToken }}>{children}</AuthContext.Provider>
 }
