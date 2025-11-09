@@ -158,11 +158,12 @@ export function NotificationSystem() {
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case "high":
-        return "border-red-200 bg-red-50"
+        return "border-error/40 bg-error/10"
       case "medium":
-        return "border-yellow-200 bg-yellow-50"
+        return "border-warning/40 bg-warning/10"
+      case "low":
       default:
-        return "border-gray-200 bg-gray-50"
+        return "border-info/40 bg-info/10"
     }
   }
 
@@ -257,7 +258,7 @@ export function NotificationSystem() {
                             <div className="flex items-center gap-2 mb-1">
                               <h4 className="font-medium">{notification.title}</h4>
                               {!notification.isRead && <div className="w-2 h-2 bg-blue-500 rounded-full"></div>}
-                              <Badge variant="outline" className="text-xs">
+                              <Badge variant={notification.priority === 'high' ? 'destructive' : notification.priority === 'medium' ? 'warning' : 'info'} className="text-xs">
                                 {notification.type}
                               </Badge>
                             </div>

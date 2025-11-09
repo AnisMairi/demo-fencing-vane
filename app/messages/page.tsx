@@ -1,3 +1,5 @@
+// Entire file commented out to hide messages section from the interface but keep the code for future reference
+/*
 import { ProtectedRoute } from "@/components/auth/protected-route"
 import { Layout } from "@/components/layout/layout"
 import { InternalMessagingSystem } from "@/components/messaging/internal-messaging-system"
@@ -20,3 +22,4 @@ export default function MessagesPage() {
     </ProtectedRoute>
   )
 }
+*/

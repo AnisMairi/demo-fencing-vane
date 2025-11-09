@@ -4,7 +4,7 @@ import { StreamlinedVideoUpload } from "@/components/video/streamlined-video-upl
 
 export default function VideoUploadPage() {
   return (
-    <ProtectedRoute allowedRoles={["local_contact", "coach", "administrator"]}>
+    <ProtectedRoute allowedRoles={["local_contact","coach", "administrator"]}>
       <Layout>
         <div className="space-y-6">
           <div>

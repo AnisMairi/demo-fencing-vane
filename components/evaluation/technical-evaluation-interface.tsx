@@ -31,14 +31,14 @@ interface TechnicalEvaluationInterfaceProps {
 export function TechnicalEvaluationInterface({ athleteId, videoId, onSave }: TechnicalEvaluationInterfaceProps) {
   const { user } = useAuth()
   const [evaluation, setEvaluation] = useState<EvaluationCriteria>({
-    posture: 50,
-    speed: 50,
-    positioning: 50,
-    technique: 50,
-    tactics: 50,
-    mentalStrength: 50,
-    adaptability: 50,
-    consistency: 50,
+    posture: 5,
+    speed: 5,
+    positioning: 5,
+    technique: 5,
+    tactics: 5,
+    mentalStrength: 5,
+    adaptability: 5,
+    consistency: 5,
   })
 
   const [comments, setComments] = useState("")
@@ -73,21 +73,21 @@ export function TechnicalEvaluationInterface({ athleteId, videoId, onSave }: Tec
 
   const calculateOverallScore = () => {
     const values = Object.values(evaluation)
-    return Math.round(values.reduce((sum, val) => sum + val, 0) / values.length)
+    return (values.reduce((sum, val) => sum + val, 0) / values.length).toFixed(1)
   }
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return "text-green-600"
-    if (score >= 60) return "text-yellow-600"
+    if (score >= 8) return "text-green-600"
+    if (score >= 6) return "text-yellow-600"
     return "text-red-600"
   }
 
   const getScoreLabel = (score: number) => {
-    if (score >= 90) return "Excellent"
-    if (score >= 80) return "Très Bien"
-    if (score >= 70) return "Bien"
-    if (score >= 60) return "Satisfaisant"
-    if (score >= 50) return "Moyen"
+    if (score >= 9) return "Excellent"
+    if (score >= 8) return "Très Bien"
+    if (score >= 7) return "Bien"
+    if (score >= 6) return "Satisfaisant"
+    if (score >= 5) return "Moyen"
     return "À Améliorer"
   }
 
@@ -108,122 +108,62 @@ export function TechnicalEvaluationInterface({ athleteId, videoId, onSave }: Tec
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Évaluation Technique</h1>
-          <p className="text-muted-foreground">
-            {videoId ? "Évaluation basée sur une vidéo spécifique" : "Évaluation générale de l'athlète"}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline">
-            <Eye className="h-4 w-4 mr-2" />
-            Aperçu
-          </Button>
-          <Button variant="outline">
-            <BarChart3 className="h-4 w-4 mr-2" />
-            Statistiques
-          </Button>
         </div>
       </div>
-
-      {/* Evaluation Settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Paramètres d'Évaluation</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Type d'Évaluation</Label>
-              <Select value={evaluationType} onValueChange={(value: any) => setEvaluationType(value)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="video">Évaluation Vidéo</SelectItem>
-                  <SelectItem value="general">Évaluation Générale</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Visibilité</Label>
-              <Select value={visibility} onValueChange={(value: any) => setVisibility(value)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="private">Privé (Évaluateur uniquement)</SelectItem>
-                  <SelectItem value="coach">Entraîneurs</SelectItem>
-                  <SelectItem value="public">Public</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Évaluateur</Label>
-              <div className="p-2 bg-muted rounded-md">
-                <span className="font-medium">{user?.name}</span>
-                <Badge variant="outline" className="ml-2">
-                  {user?.role === "coach"
-                    ? "Entraîneur"
-                    : user?.role === "administrator"
-                      ? "Administrateur"
-                      : "Contact Local"}
-                </Badge>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Overall Score Display */}
       <Card>
         <CardContent className="p-6">
           <div className="text-center space-y-2">
-            <div className={`text-6xl font-bold ${getScoreColor(calculateOverallScore())}`}>
+            <div className={`text-6xl font-bold ${getScoreColor(Number(calculateOverallScore()))}`}>
               {calculateOverallScore()}
             </div>
-            <div className="text-xl font-semibold">{getScoreLabel(calculateOverallScore())}</div>
+            <div className="text-xl font-semibold">{getScoreLabel(Number(calculateOverallScore()))}</div>
             <div className="text-muted-foreground">Note Globale</div>
           </div>
         </CardContent>
       </Card>
 
       {/* Evaluation Criteria */}
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-8 md:grid-cols-2">
         {Object.entries(evaluation).map(([key, value]) => (
-          <Card key={key}>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span>{criteriaLabels[key as keyof EvaluationCriteria]}</span>
-                <div className="flex items-center gap-2">
-                  <span className={`text-2xl font-bold ${getScoreColor(value)}`}>{value}</span>
-                  <Star className={`h-5 w-5 ${value >= 80 ? "text-yellow-500 fill-yellow-500" : "text-gray-300"}`} />
+          <Card key={key} className="shadow-sm border border-gray-200 rounded-xl">
+            <CardHeader className="pb-2">
+              <CardTitle>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="truncate max-w-[60%] text-base font-semibold tracking-tight">{criteriaLabels[key as keyof EvaluationCriteria]}</span>
+                  <div className="flex items-center gap-3 min-w-[70px] justify-end">
+                    <span className={`text-2xl font-bold ${getScoreColor(value)}`}>{value}</span>
+                    <Star className={`h-5 w-5 ${value >= 8 ? "text-yellow-500 fill-yellow-500" : "text-gray-300"}`} />
+                  </div>
                 </div>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">{criteriaDescriptions[key as keyof EvaluationCriteria]}</p>
-              <div className="space-y-2">
-                <Slider
-                  value={[value]}
-                  onValueChange={(newValue) => updateCriteria(key as keyof EvaluationCriteria, newValue)}
-                  max={100}
-                  step={1}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>0 - À améliorer</span>
-                  <span>50 - Moyen</span>
-                  <span>100 - Excellent</span>
+            <CardContent className="space-y-5 pt-0 pb-6">
+              <p className="text-sm text-muted-foreground min-h-[36px] mb-2">{criteriaDescriptions[key as keyof EvaluationCriteria]}</p>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-4 w-full">
+                  <span className="text-xs text-muted-foreground w-24 text-left">0 - À améliorer</span>
+                  <Slider
+                    value={[value]}
+                    onValueChange={(newValue) => updateCriteria(key as keyof EvaluationCriteria, newValue)}
+                    max={10}
+                    min={0}
+                    step={1}
+                    className="flex-1"
+                  />
+                  <span className="text-xs text-muted-foreground w-20 text-right">10 - Excellent</span>
                 </div>
-              </div>
-              <div className="text-center">
-                <Badge variant={value >= 80 ? "default" : value >= 60 ? "secondary" : "destructive"}>
-                  {getScoreLabel(value)}
-                </Badge>
+                <div className="flex justify-center mt-2">
+                  <Badge variant={value >= 8 ? "default" : value >= 6 ? "secondary" : "destructive"} className="px-4 py-1 text-sm">
+                    {getScoreLabel(value)}
+                  </Badge>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -248,10 +188,6 @@ export function TechnicalEvaluationInterface({ athleteId, videoId, onSave }: Tec
 
       {/* Action Buttons */}
       <div className="flex justify-end gap-4">
-        <Button variant="outline" onClick={() => console.log("Save as draft")}>
-          <Save className="h-4 w-4 mr-2" />
-          Sauvegarder Brouillon
-        </Button>
         <Button onClick={handleSave}>
           <Send className="h-4 w-4 mr-2" />
           Publier Évaluation
@@ -271,19 +207,19 @@ export function TechnicalEvaluationInterface({ athleteId, videoId, onSave }: Tec
             </div>
             <div>
               <div className="text-2xl font-bold text-green-600">
-                {Object.values(evaluation).filter((v) => v >= 80).length}
+                {Object.values(evaluation).filter((v) => v >= 8).length}
               </div>
               <div className="text-sm text-muted-foreground">Points Forts</div>
             </div>
             <div>
               <div className="text-2xl font-bold text-yellow-600">
-                {Object.values(evaluation).filter((v) => v >= 60 && v < 80).length}
+                {Object.values(evaluation).filter((v) => v >= 6 && v < 8).length}
               </div>
               <div className="text-sm text-muted-foreground">À Développer</div>
             </div>
             <div>
               <div className="text-2xl font-bold text-red-600">
-                {Object.values(evaluation).filter((v) => v < 60).length}
+                {Object.values(evaluation).filter((v) => v < 6).length}
               </div>
               <div className="text-sm text-muted-foreground">À Améliorer</div>
             </div>

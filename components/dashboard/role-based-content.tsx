@@ -18,24 +18,25 @@ export function RoleBasedContent() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Upload className="h-5 w-5" />
-                  Upload Videos
+                  Envoyer des vidéos
                 </CardTitle>
-                <CardDescription>Upload new fencing videos for review and analysis</CardDescription>
+                <CardDescription>Partagez les performances de vos jeunes escrimeurs pour évaluation</CardDescription>
               </CardHeader>
               <CardContent>
                 <Button asChild>
-                  <Link href="/videos/upload">Upload Video</Link>
+                  <Link href="/videos/upload">Envoyer une vidéo</Link>
                 </Button>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>Recent Uploads</CardTitle>
-                <CardDescription>Your recently uploaded videos</CardDescription>
+                <CardTitle>Vidéos récentes</CardTitle>
+                <CardDescription>Vos dernières contributions à la détection de talents</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">5 videos uploaded this week</p>
+                <p className="text-sm text-muted-foreground">8 vidéos envoyées cette semaine</p>
+                <p className="text-xs text-muted-foreground mt-1">3 en attente d'évaluation</p>
               </CardContent>
             </Card>
           </div>
@@ -48,24 +49,25 @@ export function RoleBasedContent() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Users className="h-5 w-5" />
-                  Athlete Management
+                  Gestion des talents
                 </CardTitle>
-                <CardDescription>Manage and evaluate your athletes</CardDescription>
+                <CardDescription>Suivez et évaluez vos jeunes escrimeurs prometteurs</CardDescription>
               </CardHeader>
               <CardContent>
                 <Button asChild>
-                  <Link href="/athletes">View Athletes</Link>
+                  <Link href="/athletes">Voir les talents</Link>
                 </Button>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>Pending Evaluations</CardTitle>
-                <CardDescription>Videos waiting for your review</CardDescription>
+                <CardTitle>Évaluations en attente</CardTitle>
+                <CardDescription>Vidéos nécessitant votre expertise technique</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">12 videos pending evaluation</p>
+                <p className="text-sm text-muted-foreground">18 vidéos en attente d'évaluation</p>
+                <p className="text-xs text-muted-foreground mt-1">Priorité haute : 5 talents prometteurs</p>
               </CardContent>
             </Card>
           </div>
@@ -73,40 +75,30 @@ export function RoleBasedContent() {
 
       case "administrator":
         return (
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Shield className="h-5 w-5" />
-                  System Administration
+                  Administration
                 </CardTitle>
-                <CardDescription>Manage users and platform settings</CardDescription>
+                <CardDescription>Gérez les utilisateurs et les paramètres de la plateforme</CardDescription>
               </CardHeader>
               <CardContent>
                 <Button asChild>
-                  <Link href="/admin">Admin Panel</Link>
+                  <Link href="/admin">Panneau d'administration</Link>
                 </Button>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>Content Moderation</CardTitle>
-                <CardDescription>Review flagged content</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">3 items need review</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Platform Analytics</CardTitle>
-                <CardDescription>View detailed platform statistics</CardDescription>
+                <CardTitle>Analyses de la plateforme</CardTitle>
+                <CardDescription>Consultez les statistiques détaillées</CardDescription>
               </CardHeader>
               <CardContent>
                 <Button variant="outline" asChild>
-                  <Link href="/dashboard/analytics">View Analytics</Link>
+                  <Link href="/dashboard/analytics">Voir les analyses</Link>
                 </Button>
               </CardContent>
             </Card>
@@ -120,7 +112,7 @@ export function RoleBasedContent() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-2xl font-bold">Quick Actions</h2>
+      <h2 className="text-2xl font-bold">Actions rapides</h2>
       {getContentByRole()}
     </div>
   )

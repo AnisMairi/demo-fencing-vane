@@ -12,6 +12,7 @@ import { Progress } from "@/components/ui/progress"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Upload, X, Play, CheckCircle, AlertCircle, FileVideo } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
+import { COMPETITION_TYPES } from "@/lib/utils"
 
 interface VideoFile {
   file: File
@@ -41,20 +42,6 @@ export function SimplifiedVideoUpload() {
     weapon: "",
     competitionType: "",
   })
-
-  const competitionTypes = [
-    "Championnat Régional",
-    "Championnat National",
-    "Tournoi International",
-    "Compétition Locale",
-    "Match d'Entraînement",
-    "Tournoi de Club",
-    "Compétition Scolaire",
-    "Circuit Jeunes",
-    "Compétition Cadets",
-    "Compétition Juniors",
-    "Compétition Seniors",
-  ]
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const newFiles = acceptedFiles.map((file) => ({
@@ -315,7 +302,7 @@ export function SimplifiedVideoUpload() {
                   <SelectValue placeholder="Sélectionnez le type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {competitionTypes.map((type) => (
+                  {COMPETITION_TYPES.map((type) => (
                     <SelectItem key={type} value={type}>
                       {type}
                     </SelectItem>

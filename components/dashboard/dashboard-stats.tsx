@@ -1,32 +1,33 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Video, Users, MessageSquare, TrendingUp } from "lucide-react"
+import { LogIn, Users, Upload, TrendingUp } from "lucide-react"
 
 export function DashboardStats() {
   const stats = [
     {
-      title: "Total Videos",
-      value: "1,234",
-      description: "+20.1% from last month",
-      icon: Video,
+      title: "Connexions Référants",
+      value: "142",
+      description: "Ce mois en cours",
+      icon: LogIn,
     },
     {
-      title: "Active Athletes",
+      title: "Coachs Actifs",
       value: "89",
-      description: "+5 new this week",
+      description: "Ce mois en cours",
       icon: Users,
     },
     {
-      title: "Messages",
-      value: "456",
-      description: "12 unread",
-      icon: MessageSquare,
+      title: "Uploads de Vidéos",
+      value: "1,234",
+      description: "+18.5% vs mois dernier",
+      icon: Upload,
+      trend: "+18.5%",
     },
     {
-      title: "Engagement",
-      value: "92%",
-      description: "+2.5% from last week",
+      title: "Taux de Progression",
+      value: "87%",
+      description: "+5.2% par rapport au trimestre dernier",
       icon: TrendingUp,
     },
   ]

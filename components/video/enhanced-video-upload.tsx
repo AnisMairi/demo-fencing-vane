@@ -14,6 +14,7 @@ import { Progress } from "@/components/ui/progress"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Upload, X, Play, CheckCircle, AlertCircle, FileVideo, Lock, Globe } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
+import { COMPETITION_TYPES } from "@/lib/utils"
 
 interface VideoFile {
   file: File
@@ -36,13 +37,11 @@ interface VideoMetadata {
   competitionType: string
   comments: string
   commentVisibility: "public" | "private"
-  tags: string[]
 }
 
 export function EnhancedVideoUpload() {
   const { user } = useAuth()
   const [videoFiles, setVideoFiles] = useState<VideoFile[]>([])
-  const [currentTag, setCurrentTag] = useState("")
   const [metadata, setMetadata] = useState<VideoMetadata>({
     athlete: {
       firstName: "",
@@ -54,22 +53,7 @@ export function EnhancedVideoUpload() {
     competitionType: "",
     comments: "",
     commentVisibility: "public",
-    tags: [],
   })
-
-  const competitionTypes = [
-    "Regional Championship",
-    "National Championship",
-    "International Tournament",
-    "Local Competition",
-    "Training Match",
-    "Club Tournament",
-    "School Competition",
-    "Youth Circuit",
-    "Cadet Competition",
-    "Junior Competition",
-    "Senior Competition",
-  ]
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const newFiles = acceptedFiles.map((file) => ({
@@ -102,20 +86,11 @@ export function EnhancedVideoUpload() {
   }
 
   const addTag = () => {
-    if (currentTag.trim() && !metadata.tags.includes(currentTag.trim())) {
-      setMetadata((prev) => ({
-        ...prev,
-        tags: [...prev.tags, currentTag.trim()],
-      }))
-      setCurrentTag("")
-    }
+    // This function is no longer needed as tags are removed
   }
 
   const removeTag = (tagToRemove: string) => {
-    setMetadata((prev) => ({
-      ...prev,
-      tags: prev.tags.filter((tag) => tag !== tagToRemove),
-    }))
+    // This function is no longer needed as tags are removed
   }
 
   const simulateUpload = async (fileId: string) => {
@@ -297,7 +272,7 @@ export function EnhancedVideoUpload() {
                   <SelectValue placeholder="Select competition type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {competitionTypes.map((type) => (
+                  {COMPETITION_TYPES.map((type) => (
                     <SelectItem key={type} value={type}>
                       {type}
                     </SelectItem>
@@ -426,36 +401,7 @@ export function EnhancedVideoUpload() {
         </CardContent>
       </Card>
 
-      {/* Tags */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Tags (Optional)</CardTitle>
-          <CardDescription>Add tags to help categorize and search for this video</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <Input
-              placeholder="Add a tag (e.g., 'final bout', 'excellent footwork')"
-              value={currentTag}
-              onChange={(e) => setCurrentTag(e.target.value)}
-              onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addTag())}
-            />
-            <Button type="button" onClick={addTag} variant="outline">
-              Add
-            </Button>
-          </div>
-          {metadata.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {metadata.tags.map((tag) => (
-                <Badge key={tag} variant="secondary" className="cursor-pointer" onClick={() => removeTag(tag)}>
-                  {tag}
-                  <X className="ml-1 h-3 w-3" />
-                </Badge>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Remove Tags UI section (Card, Input, Button, Badge, etc.) */}
 
       {/* Form Validation Alert */}
       {!isFormValid() && videoFiles.length > 0 && (

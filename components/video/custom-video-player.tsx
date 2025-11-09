@@ -29,7 +29,6 @@ interface VideoMetadata {
     timestamp: string
     videoTimestamp?: number
   }[]
-  tags: string[]
 }
 
 interface CustomVideoPlayerProps {
@@ -301,18 +300,7 @@ export function CustomVideoPlayer({ videoUrl, metadata, onTimeUpdate }: CustomVi
               </div>
             </div>
 
-            {metadata.tags.length > 0 && (
-              <div>
-                <h4 className="font-medium text-sm text-muted-foreground mb-2">TAGS</h4>
-                <div className="flex flex-wrap gap-2">
-                  {metadata.tags.map((tag) => (
-                    <Badge key={tag} variant="secondary">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* Remove tags display section (TAGS header, Badge, etc.) */}
           </div>
         </CardContent>
       </Card>

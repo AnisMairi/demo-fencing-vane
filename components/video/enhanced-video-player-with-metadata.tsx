@@ -11,14 +11,28 @@ import Link from "next/link"
 interface VideoMetadata {
   id: string
   title: string
-  athlete: {
+  athleteRight: {
     id: string
     firstName: string
     lastName: string
     age: number
     gender: string
+    weapon: string
+    club: string
+    coach: string
+    ranking: string
   }
-  weapon: string
+  athleteLeft: {
+    id: string
+    firstName: string
+    lastName: string
+    age: number
+    gender: string
+    weapon: string
+    club: string
+    coach: string
+    ranking: string
+  }
   competitionType: string
   uploadedAt: string
   duration: string
@@ -180,9 +194,57 @@ export function EnhancedVideoPlayerWithMetadata({
       </Card>
 
       {/* Video Metadata */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Main Info */}
-        <div className="lg:col-span-2">
+      <div className="grid gap-6 lg:grid-cols-5">
+        {/* Athlète à gauche - Left Column */}
+        <div className="lg:col-span-1">
+          <Card>
+            <CardContent className="p-6">
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <User className="h-5 w-5 text-red-600" />
+                  <h3 className="font-semibold text-red-800 text-sm">Athlète à gauche</h3>
+                </div>
+
+                <div className="space-y-3">
+                  <Button variant="link" className="p-0 h-auto text-left" asChild>
+                    <Link href={`/athletes/${metadata.athleteLeft.id}`}>
+                      <div>
+                        <p className="font-medium text-base">
+                          {metadata.athleteLeft.firstName} {metadata.athleteLeft.lastName}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Voir le profil complet</p>
+                      </div>
+                    </Link>
+                  </Button>
+
+                  <div className="space-y-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-3 w-3 text-muted-foreground" />
+                      <span>
+                        {metadata.athleteLeft.age} ans • {metadata.athleteLeft.gender}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Sword className="h-3 w-3 text-muted-foreground" />
+                      <span className="capitalize">{metadata.athleteLeft.weapon}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Trophy className="h-3 w-3 text-muted-foreground" />
+                      <span>{metadata.athleteLeft.ranking}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      <p>{metadata.athleteLeft.club}</p>
+                      <p>Coach: {metadata.athleteLeft.coach}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Video Description - Middle Column */}
+        <div className="lg:col-span-3">
           <Card>
             <CardContent className="p-6">
               <div className="space-y-4">
@@ -197,54 +259,52 @@ export function EnhancedVideoPlayerWithMetadata({
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  {metadata.tags.map((tag) => (
-                    <Badge key={tag} variant="secondary">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
+                {/* Remove tags display section (Badge, etc.) */}
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Athlete Info */}
-        <div>
+        {/* Athlète à droite - Right Column */}
+        <div className="lg:col-span-1">
           <Card>
             <CardContent className="p-6">
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
-                  <User className="h-5 w-5 text-primary" />
-                  <h3 className="font-semibold">Athlète</h3>
+                  <User className="h-5 w-5 text-blue-600" />
+                  <h3 className="font-semibold text-blue-800 text-sm">Athlète à droite</h3>
                 </div>
 
                 <div className="space-y-3">
                   <Button variant="link" className="p-0 h-auto text-left" asChild>
-                    <Link href={`/athletes/${metadata.athlete.id}`}>
+                    <Link href={`/athletes/${metadata.athleteRight.id}`}>
                       <div>
-                        <p className="font-medium text-lg">
-                          {metadata.athlete.firstName} {metadata.athlete.lastName}
+                        <p className="font-medium text-base">
+                          {metadata.athleteRight.firstName} {metadata.athleteRight.lastName}
                         </p>
-                        <p className="text-sm text-muted-foreground">Voir le profil complet</p>
+                        <p className="text-xs text-muted-foreground">Voir le profil complet</p>
                       </div>
                     </Link>
                   </Button>
 
-                  <div className="space-y-2 text-sm">
+                  <div className="space-y-2 text-xs">
                     <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      <Calendar className="h-3 w-3 text-muted-foreground" />
                       <span>
-                        {metadata.athlete.age} ans • {metadata.athlete.gender}
+                        {metadata.athleteRight.age} ans • {metadata.athleteRight.gender}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Sword className="h-4 w-4 text-muted-foreground" />
-                      <span className="capitalize">{metadata.weapon}</span>
+                      <Sword className="h-3 w-3 text-muted-foreground" />
+                      <span className="capitalize">{metadata.athleteRight.weapon}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Trophy className="h-4 w-4 text-muted-foreground" />
-                      <span>{metadata.competitionType}</span>
+                      <Trophy className="h-3 w-3 text-muted-foreground" />
+                      <span>{metadata.athleteRight.ranking}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      <p>{metadata.athleteRight.club}</p>
+                      <p>Coach: {metadata.athleteRight.coach}</p>
                     </div>
                   </div>
                 </div>

@@ -29,14 +29,12 @@ interface VideoMetadata {
   weapon: string
   technique: string
   level: string
-  tags: string[]
   isPrivate: boolean
 }
 
 export function VideoUpload() {
   const { user } = useAuth()
   const [videoFiles, setVideoFiles] = useState<VideoFile[]>([])
-  const [currentTag, setCurrentTag] = useState("")
   const [metadata, setMetadata] = useState<VideoMetadata>({
     title: "",
     description: "",
@@ -44,7 +42,6 @@ export function VideoUpload() {
     weapon: "",
     technique: "",
     level: "",
-    tags: [],
     isPrivate: false,
   })
 
@@ -76,23 +73,6 @@ export function VideoUpload() {
       }
       return prev.filter((f) => f.id !== id)
     })
-  }
-
-  const addTag = () => {
-    if (currentTag.trim() && !metadata.tags.includes(currentTag.trim())) {
-      setMetadata((prev) => ({
-        ...prev,
-        tags: [...prev.tags, currentTag.trim()],
-      }))
-      setCurrentTag("")
-    }
-  }
-
-  const removeTag = (tagToRemove: string) => {
-    setMetadata((prev) => ({
-      ...prev,
-      tags: prev.tags.filter((tag) => tag !== tagToRemove),
-    }))
   }
 
   const simulateUpload = async (fileId: string) => {
@@ -332,31 +312,7 @@ export function VideoUpload() {
             </div>
           </div>
 
-          {/* Tags */}
-          <div className="space-y-2">
-            <Label>Tags</Label>
-            <div className="flex gap-2">
-              <Input
-                placeholder="Add a tag"
-                value={currentTag}
-                onChange={(e) => setCurrentTag(e.target.value)}
-                onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addTag())}
-              />
-              <Button type="button" onClick={addTag} variant="outline">
-                Add
-              </Button>
-            </div>
-            {metadata.tags.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                {metadata.tags.map((tag) => (
-                  <Badge key={tag} variant="secondary" className="cursor-pointer" onClick={() => removeTag(tag)}>
-                    {tag}
-                    <X className="ml-1 h-3 w-3" />
-                  </Badge>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Remove Tags UI section (Label, Input, Button, Badge, etc.) */}
 
           {/* Privacy Settings */}
           <div className="flex items-center space-x-2">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -11,6 +11,8 @@ import { Progress } from "@/components/ui/progress"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import {
   Upload,
   X,
@@ -21,18 +23,29 @@ import {
   Users,
   Sword,
   Trophy,
-  Tag,
   AlertTriangle,
+  Loader2,
+  Play,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { useVideoApi } from "@/hooks/use-video-api";
+import { useAthleteApi } from "@/hooks/use-athlete-api";
+import { useRouter } from "next/navigation";
+import { toast } from "@/components/ui/use-toast";
+import { COMPETITION_TYPES, COMPETITION_GROUPS } from "@/lib/utils"
+import React from "react"
 
 interface Athlete {
-  id: string
-  name: string
-  age: number
-  gender: "M" | "F"
-  weapons: string[]
-  club: string
+  id: number
+  first_name: string
+  last_name: string
+  date_of_birth: string
+  gender: "male" | "female"
+  weapon: "foil" | "sabre" | "épée"
+  skill_level: "beginner" | "intermediate" | "advanced" | "elite"
+  club?: string
+  region?: string
 }
 
 interface UploadedFile {
@@ -41,130 +54,230 @@ interface UploadedFile {
   status: "uploading" | "completed" | "error"
 }
 
-const mockAthletes: Athlete[] = [
-  { id: "1", name: "Marie Dubois", age: 16, gender: "F", weapons: ["Fleuret", "Épée"], club: "Club d'Escrime Paris" },
-  { id: "2", name: "Pierre Martin", age: 17, gender: "M", weapons: ["Sabre"], club: "Escrime Lyon" },
-  { id: "3", name: "Sophie Laurent", age: 15, gender: "F", weapons: ["Fleuret"], club: "Club d'Escrime Marseille" },
-  { id: "4", name: "Lucas Bernard", age: 18, gender: "M", weapons: ["Épée", "Sabre"], club: "Escrime Toulouse" },
-  {
-    id: "5",
-    name: "Emma Moreau",
-    age: 16,
-    gender: "F",
-    weapons: ["Fleuret", "Sabre", "Épée"],
-    club: "Club d'Escrime Nice",
-  },
+// Real athletes will be loaded from API
+
+// Weapon mapping: French display names to English backend values
+const weapons = [
+  { display: "Fleuret", value: "foil" },
+  { display: "Sabre", value: "sabre" },
+  { display: "Épée", value: "epee" }
 ]
 
-const weapons = ["Fleuret", "Sabre", "Épée"]
-
-const competitionTypes = [
-  "Compétition locale",
-  "Championnat régional",
-  "Championnat national",
-  "Coupe de France",
-  "Championnat d'Europe",
-  "Championnat du monde",
-  "Jeux Olympiques",
-  "Tournoi international",
-  "Challenge jeunes",
-  "Coupe cadets",
-  "Championnat juniors",
-  "Grand Prix",
-  "Épreuve satellite",
-  "Match amical",
-]
-
-const popularTags = [
-  "Technique",
-  "Tactique",
-  "Attaque",
-  "Défense",
-  "Parade",
-  "Riposte",
-  "Entraînement",
-  "Compétition",
-  "Analyse",
-  "Progression",
-]
+function AthleteSelect({
+  label,
+  selectedAthlete,
+  setSelectedAthlete,
+  excludeAthleteId,
+  error,
+  athletes,
+  loadingAthletes,
+}: {
+  label: string
+  selectedAthlete: Athlete | null
+  setSelectedAthlete: (athlete: Athlete) => void
+  excludeAthleteId?: number
+  error?: string
+  athletes: Athlete[]
+  loadingAthletes: boolean
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [search, setSearch] = useState("")
+  const filtered = athletes.filter(
+    (athlete) =>
+      (!excludeAthleteId || athlete.id !== excludeAthleteId) &&
+      (search === "" || 
+        (athlete.first_name + " " + athlete.last_name).toLowerCase().includes(search.toLowerCase()) ||
+        (athlete.club || "").toLowerCase().includes(search.toLowerCase()))
+  )
+  return (
+    <div className="space-y-1">
+      <Label className="text-base font-medium flex items-center gap-2">
+        <User className="h-4 w-4" />
+        {label}
+      </Label>
+      <Popover open={isOpen} onOpenChange={setIsOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={isOpen}
+            disabled={loadingAthletes}
+            className={cn("w-full justify-between bg-transparent", error && "border-red-500")}
+          >
+            {loadingAthletes ? "Chargement des athlètes..." : selectedAthlete ? `${selectedAthlete.first_name} ${selectedAthlete.last_name}` : "Sélectionner un athlète..."}
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-full p-0">
+          <Command shouldFilter={false}>
+            <CommandInput
+              placeholder="Rechercher un athlète..."
+              value={search}
+              onValueChange={setSearch}
+              autoFocus
+            />
+            <CommandList>
+              <CommandEmpty>
+                {loadingAthletes ? "Chargement..." : "Aucun athlète trouvé."}
+              </CommandEmpty>
+              <CommandGroup>
+                {loadingAthletes ? (
+                  <div className="flex items-center justify-center p-4">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="ml-2">Chargement des athlètes...</span>
+                  </div>
+                ) : (
+                  filtered.map((athlete) => (
+                  <CommandItem
+                    key={athlete.id}
+                    value={`${athlete.first_name} ${athlete.last_name} ${athlete.id}`}
+                    onSelect={() => {
+                      setSelectedAthlete(athlete)
+                      setIsOpen(false)
+                      setSearch("")
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        selectedAthlete?.id === athlete.id ? "opacity-100" : "opacity-0",
+                      )}
+                    />
+                    <div className="flex flex-col">
+                      <span className="font-medium">{athlete.first_name} {athlete.last_name}</span>
+                      <span className="text-sm text-muted-foreground">
+                        {new Date().getFullYear() - new Date(athlete.date_of_birth).getFullYear()} ans • {athlete.gender === "male" ? "Homme" : "Femme"} • {athlete.weapon}
+                      </span>
+                      <span className="text-xs text-muted-foreground">{athlete.club || "Club non spécifié"}</span>
+                    </div>
+                  </CommandItem>
+                ))
+                )}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      {selectedAthlete && (
+        <Card className="bg-muted/50 mt-2">
+          <CardContent className="pt-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <span>{new Date().getFullYear() - new Date(selectedAthlete.date_of_birth).getFullYear()} ans</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                <span>{selectedAthlete.gender === "male" ? "Homme" : "Femme"}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Sword className="h-4 w-4 text-muted-foreground" />
+                <span>{selectedAthlete.weapon}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Trophy className="h-4 w-4 text-muted-foreground" />
+                <span className="truncate">{selectedAthlete.club || "Club non spécifié"}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      {error && <div className="text-red-500 text-xs mt-1">{error}</div>}
+    </div>
+  )
+}
 
 export function StreamlinedVideoUpload() {
+  const [athleteMode, setAthleteMode] = useState<"single" | "dual">("single")
   const [selectedAthlete, setSelectedAthlete] = useState<Athlete | null>(null)
+  const [selectedAthleteLeft, setSelectedAthleteLeft] = useState<Athlete | null>(null)
+  const [selectedAthleteRight, setSelectedAthleteRight] = useState<Athlete | null>(null)
   const [selectedWeapon, setSelectedWeapon] = useState("")
+  const [selectedWeaponValue, setSelectedWeaponValue] = useState("")
   const [competitionType, setCompetitionType] = useState("")
-  const [tags, setTags] = useState<string[]>([])
-  const [newTag, setNewTag] = useState("")
   const [files, setFiles] = useState<UploadedFile[]>([])
-  const [isAthleteOpen, setIsAthleteOpen] = useState(false)
-  const [athleteSearch, setAthleteSearch] = useState("")
+  const [athleteError, setAthleteError] = useState<string>("")
+  const [athleteLeftError, setAthleteLeftError] = useState<string>("")
+  const [athleteRightError, setAthleteRightError] = useState<string>("")
+  // Add state for video title, date, and description
+  const [videoTitle, setVideoTitle] = useState("");
+  const [videoDate, setVideoDate] = useState("");
+  const [videoDescription, setVideoDescription] = useState("");
+  // Add state for scores
+  const [scoreSingle, setScoreSingle] = useState("");
+  const [scoreLeft, setScoreLeft] = useState("");
+  const [scoreRight, setScoreRight] = useState("");
+  // Add state for video preview
+  const [videoPreview, setVideoPreview] = useState<string>("");
+  const [videoLoading, setVideoLoading] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+  // Add state for athletes loading
+  const [athletes, setAthletes] = useState<Athlete[]>([])
+  const [loadingAthletes, setLoadingAthletes] = useState(true)
 
-  const filteredAthletes = mockAthletes.filter(
-    (athlete) =>
-      athlete.name.toLowerCase().includes(athleteSearch.toLowerCase()) ||
-      athlete.club.toLowerCase().includes(athleteSearch.toLowerCase()),
-  )
+  const router = useRouter();
+  const { uploadVideo } = useVideoApi();
+  const { getAthletes } = useAthleteApi();
+
+  // Load athletes on component mount
+  useEffect(() => {
+    const loadAthletes = async () => {
+      try {
+        setLoadingAthletes(true)
+        const athletesData = await getAthletes({ limit: 100 })
+        setAthletes(athletesData)
+      } catch (error) {
+        console.error('Error loading athletes:', error)
+        toast({
+          title: "Erreur",
+          description: "Impossible de charger la liste des athlètes",
+          variant: "destructive",
+        })
+      } finally {
+        setLoadingAthletes(false)
+      }
+    }
+
+    loadAthletes()
+  }, [getAthletes])
+
+  // Add a useEffect to reset form fields when athleteMode changes
+  useEffect(() => {
+    setSelectedAthlete(null);
+    setSelectedAthleteLeft(null);
+    setSelectedAthleteRight(null);
+    setScoreSingle("");
+    setScoreLeft("");
+    setScoreRight("");
+    setAthleteError("");
+    setAthleteLeftError("");
+    setAthleteRightError("");
+    // Optionally reset more fields if needed
+  }, [athleteMode]);
 
   const handleFileUpload = useCallback((uploadedFiles: FileList | null) => {
-    if (!uploadedFiles) return
+    if (!uploadedFiles || uploadedFiles.length === 0) return;
+    const file = uploadedFiles[0];
+    setFiles([{ file, progress: 100, status: "completed" }]);
+    setVideoPreview(URL.createObjectURL(file));
+  }, []);
 
-    const newFiles: UploadedFile[] = Array.from(uploadedFiles).map((file) => ({
-      file,
-      progress: 0,
-      status: "uploading" as const,
-    }))
+  // Weapon compatibility: compare display name with API weapon value
+  const isWeaponCompatible = selectedAthlete && selectedWeapon ? 
+    weapons.find(w => w.display === selectedWeapon)?.value === selectedAthlete.weapon : true
 
-    setFiles((prev) => [...prev, ...newFiles])
-
-    // Simulate upload progress
-    newFiles.forEach((uploadFile, index) => {
-      const interval = setInterval(() => {
-        setFiles((prev) =>
-          prev.map((f) => (f.file === uploadFile.file ? { ...f, progress: Math.min(f.progress + 10, 100) } : f)),
-        )
-      }, 200)
-
-      setTimeout(
-        () => {
-          clearInterval(interval)
-          setFiles((prev) =>
-            prev.map((f) => (f.file === uploadFile.file ? { ...f, progress: 100, status: "completed" } : f)),
-          )
-        },
-        2000 + index * 500,
-      )
-    })
-  }, [])
-
-  const addTag = (tag: string) => {
-    if (tag && !tags.includes(tag)) {
-      setTags([...tags, tag])
-      setNewTag("")
-    }
-  }
-
-  const removeTag = (tagToRemove: string) => {
-    setTags(tags.filter((tag) => tag !== tagToRemove))
-  }
-
-  const handleSubmit = () => {
-    if (!selectedAthlete || !selectedWeapon || !competitionType || files.length === 0) {
-      alert("Veuillez remplir tous les champs obligatoires")
-      return
-    }
-
-    console.log("Submitting:", {
-      athlete: selectedAthlete,
-      weapon: selectedWeapon,
-      competitionType,
-      tags,
-      files: files.map((f) => f.file.name),
-    })
-  }
-
-  const isWeaponCompatible = selectedAthlete && selectedWeapon ? selectedAthlete.weapons.includes(selectedWeapon) : true
+  // Compute isFormValid based on athleteMode
+  const isFormValid = athleteMode === "single"
+    ? selectedAthlete && videoTitle && competitionType && videoDate && files.length > 0
+    : selectedAthleteLeft && selectedAthleteRight && videoTitle && competitionType && videoDate && files.length > 0 && scoreLeft && scoreRight;
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
+    <div className="p-6 space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -181,24 +294,75 @@ export function StreamlinedVideoUpload() {
             <Label htmlFor="video-upload" className="text-base font-medium">
               Fichiers Vidéo *
             </Label>
-            <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center">
-              <Upload className="mx-auto h-12 w-12 text-muted-foreground/50 mb-4" />
-              <div className="space-y-2">
-                <p className="text-lg font-medium">Glissez-déposez vos vidéos ici</p>
-                <p className="text-sm text-muted-foreground">ou cliquez pour sélectionner des fichiers</p>
-                <Input
-                  id="video-upload"
-                  type="file"
-                  multiple
-                  accept="video/*"
-                  className="hidden"
-                  onChange={(e) => handleFileUpload(e.target.files)}
+            {files.length === 0 ? (
+              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center">
+                <Upload className="mx-auto h-12 w-12 text-muted-foreground/50 mb-4" />
+                <div className="space-y-2">
+                  <p className="text-lg font-medium">Glissez-déposez vos vidéos ici</p>
+                  <p className="text-sm text-muted-foreground">ou cliquez pour sélectionner des fichiers</p>
+                  <Input
+                    id="video-upload"
+                    type="file"
+                    accept="video/*"
+                    className="hidden"
+                    onChange={e => handleFileUpload(e.target.files)}
+                  />
+                  <Button variant="outline" onClick={() => document.getElementById("video-upload")?.click()}>
+                    Sélectionner des fichiers
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2 mt-4 relative">
+                <button
+                  type="button"
+                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 bg-gray-700/80 text-white p-3 rounded-full shadow hover:bg-gray-800/90 transition flex items-center justify-center"
+                  onClick={() => setShowPreview(true)}
+                  style={{ display: showPreview ? 'none' : 'flex' }}
+                >
+                  <Play className="h-7 w-7" />
+                </button>
+                <Dialog open={showPreview} onOpenChange={setShowPreview}>
+                  <DialogContent className="max-w-3xl">
+                    <video
+                      src={videoPreview}
+                      className="w-full h-[70vh] object-contain rounded shadow"
+                      controls
+                      autoPlay
+                      muted={false}
+                    />
+                  </DialogContent>
+                </Dialog>
+                {videoLoading && (
+                  <div className="flex items-center justify-center w-48 h-32">
+                    <Loader2 className="animate-spin h-8 w-8 text-muted-foreground" />
+                  </div>
+                )}
+                <video
+                  ref={videoRef}
+                  src={videoPreview}
+                  className={`w-48 h-32 object-cover rounded shadow ${videoLoading ? 'hidden' : ''}`}
+                  controls={false}
+                  autoPlay={false}
+                  muted
+                  poster=""
+                  onLoadedData={() => setVideoLoading(false)}
+                  onLoadStart={() => setVideoLoading(true)}
                 />
-                <Button variant="outline" onClick={() => document.getElementById("video-upload")?.click()}>
-                  Sélectionner des fichiers
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    setFiles([]);
+                    setVideoPreview("");
+                    setVideoLoading(false);
+                    setShowPreview(false);
+                  }}
+                >
+                  Supprimer la vidéo
                 </Button>
               </div>
-            </div>
+            )}
 
             {/* Upload Progress */}
             {files.length > 0 && (
@@ -218,91 +382,64 @@ export function StreamlinedVideoUpload() {
             )}
           </div>
 
-          {/* Athlete Selection */}
-          <div className="space-y-3">
-            <Label className="text-base font-medium flex items-center gap-2">
-              <User className="h-4 w-4" />
-              Sélection d'Athlète *
-            </Label>
-            <Popover open={isAthleteOpen} onOpenChange={setIsAthleteOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={isAthleteOpen}
-                  className="w-full justify-between bg-transparent"
-                >
-                  {selectedAthlete ? selectedAthlete.name : "Sélectionner un athlète..."}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-full p-0">
-                <Command>
-                  <CommandInput
-                    placeholder="Rechercher un athlète..."
-                    value={athleteSearch}
-                    onValueChange={setAthleteSearch}
-                  />
-                  <CommandList>
-                    <CommandEmpty>Aucun athlète trouvé.</CommandEmpty>
-                    <CommandGroup>
-                      {filteredAthletes.map((athlete) => (
-                        <CommandItem
-                          key={athlete.id}
-                          value={athlete.name}
-                          onSelect={() => {
-                            setSelectedAthlete(athlete)
-                            setIsAthleteOpen(false)
-                            setAthleteSearch("")
-                          }}
-                        >
-                          <Check
-                            className={cn(
-                              "mr-2 h-4 w-4",
-                              selectedAthlete?.id === athlete.id ? "opacity-100" : "opacity-0",
-                            )}
-                          />
-                          <div className="flex flex-col">
-                            <span className="font-medium">{athlete.name}</span>
-                            <span className="text-sm text-muted-foreground">
-                              {athlete.age} ans • {athlete.gender === "M" ? "Homme" : "Femme"} •{" "}
-                              {athlete.weapons.join(", ")}
-                            </span>
-                            <span className="text-xs text-muted-foreground">{athlete.club}</span>
-                          </div>
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+          {/* Video Title Field */}
+          <div className="space-y-4">
+            <div className="mt-8">
+              <Label htmlFor="video-title">Titre de la vidéo *</Label>
+              <Input
+                id="video-title"
+                placeholder="Entrez le titre de la vidéo"
+                value={videoTitle}
+                onChange={e => setVideoTitle(e.target.value)}
+                required
+              />
+            </div>
+          </div>
 
-            {/* Athlete Details Display */}
-            {selectedAthlete && (
-              <Card className="bg-muted/50">
-                <CardContent className="pt-4">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span>{selectedAthlete.age} ans</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                      <span>{selectedAthlete.gender === "M" ? "Homme" : "Femme"}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Sword className="h-4 w-4 text-muted-foreground" />
-                      <span>{selectedAthlete.weapons.join(", ")}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Trophy className="h-4 w-4 text-muted-foreground" />
-                      <span className="truncate">{selectedAthlete.club}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+          {/* Athlete Mode Selection with Tabs */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="font-medium">Nombre d'athlètes :</span>
+            </div>
+            <Tabs value={athleteMode} onValueChange={(value) => setAthleteMode(value as "single" | "dual")}
+              className="w-full">
+              <TabsList className="w-full mb-4">
+                <TabsTrigger value="single" className="w-1/2">Un athlète</TabsTrigger>
+                <TabsTrigger value="dual" className="w-1/2">Deux athlètes</TabsTrigger>
+              </TabsList>
+              <TabsContent value="single">
+                <AthleteSelect
+                  label="Sélection d'Athlète *"
+                  selectedAthlete={selectedAthlete}
+                  setSelectedAthlete={setSelectedAthlete}
+                  error={athleteError}
+                  athletes={athletes}
+                  loadingAthletes={loadingAthletes}
+                />
+              </TabsContent>
+              <TabsContent value="dual">
+                <div className="flex flex-col gap-4">
+                  <AthleteSelect
+                    label="Athlète à gauche"
+                    selectedAthlete={selectedAthleteLeft}
+                    setSelectedAthlete={setSelectedAthleteLeft}
+                    excludeAthleteId={selectedAthleteRight?.id}
+                    error={athleteLeftError}
+                    athletes={athletes}
+                    loadingAthletes={loadingAthletes}
+                  />
+                  <AthleteSelect
+                    label="Athlète à droite"
+                    selectedAthlete={selectedAthleteRight}
+                    setSelectedAthlete={setSelectedAthleteRight}
+                    excludeAthleteId={selectedAthleteLeft?.id}
+                    error={athleteRightError}
+                    athletes={athletes}
+                    loadingAthletes={loadingAthletes}
+                  />
+                </div>
+              </TabsContent>
+            </Tabs>
           </div>
 
           {/* Weapon Selection */}
@@ -317,20 +454,19 @@ export function StreamlinedVideoUpload() {
               </SelectTrigger>
               <SelectContent>
                 {weapons.map((weapon) => (
-                  <SelectItem key={weapon} value={weapon}>
-                    {weapon}
+                  <SelectItem key={weapon.value} value={weapon.display}>
+                    {weapon.display}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-
             {/* Weapon Compatibility Warning */}
             {selectedAthlete && selectedWeapon && !isWeaponCompatible && (
               <Alert>
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
-                  Attention: {selectedAthlete.name} ne pratique habituellement pas le {selectedWeapon}. Armes
-                  pratiquées: {selectedAthlete.weapons.join(", ")}
+                  Attention: {selectedAthlete.first_name} {selectedAthlete.last_name} ne pratique habituellement pas le {selectedWeapon}. Arme
+                  pratiquée: {selectedAthlete.weapon}
                 </AlertDescription>
               </Alert>
             )}
@@ -342,81 +478,228 @@ export function StreamlinedVideoUpload() {
               <Trophy className="h-4 w-4" />
               Type de Compétition *
             </Label>
-            <Select value={competitionType} onValueChange={setCompetitionType}>
+            <Select value={competitionType} onValueChange={value => setCompetitionType(value === 'clear' ? '' : value)}>
               <SelectTrigger>
                 <SelectValue placeholder="Sélectionner le type de compétition..." />
               </SelectTrigger>
-              <SelectContent>
-                {competitionTypes.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type}
-                  </SelectItem>
+              <SelectContent className="max-h-64 overflow-y-auto">
+                <SelectItem value="clear" className="text-muted-foreground italic">Aucune sélection</SelectItem>
+                {COMPETITION_GROUPS.map((group: { level: string; competitions: string[] }) => (
+                  <React.Fragment key={group.level}>
+                    <div className="px-3 py-1 text-sm font-semibold text-muted-foreground bg-muted/30 border-t border-muted cursor-default select-none">
+                      {group.level}
+                    </div>
+                    {group.competitions.map((competition: string) => (
+                      <SelectItem key={competition} value={competition}>
+                        {competition}
+                      </SelectItem>
+                    ))}
+                  </React.Fragment>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          {/* Tags */}
-          <div className="space-y-3">
-            <Label className="text-base font-medium flex items-center gap-2">
-              <Tag className="h-4 w-4" />
-              Tags
-            </Label>
-
-            {/* Popular Tags */}
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Tags populaires:</p>
-              <div className="flex flex-wrap gap-2">
-                {popularTags.map((tag) => (
-                  <Button
-                    key={tag}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => addTag(tag)}
-                    disabled={tags.includes(tag)}
-                  >
-                    {tag}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            {/* Custom Tag Input */}
-            <div className="flex gap-2">
+          {/* Video Date and Description Fields */}
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="video-date">Date de la vidéo *</Label>
               <Input
-                placeholder="Ajouter un tag personnalisé..."
-                value={newTag}
-                onChange={(e) => setNewTag(e.target.value)}
-                onKeyPress={(e) => e.key === "Enter" && addTag(newTag)}
+                id="video-date"
+                type="date"
+                value={videoDate}
+                onChange={e => setVideoDate(e.target.value)}
+                required
               />
-              <Button onClick={() => addTag(newTag)} disabled={!newTag}>
-                Ajouter
-              </Button>
             </div>
-
-            {/* Selected Tags */}
-            {tags.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {tags.map((tag) => (
-                  <Badge key={tag} variant="secondary" className="flex items-center gap-1">
-                    {tag}
-                    <X className="h-3 w-3 cursor-pointer" onClick={() => removeTag(tag)} />
-                  </Badge>
-                ))}
-              </div>
-            )}
+            <div>
+              <Label htmlFor="video-description">Description</Label>
+              <textarea
+                id="video-description"
+                className="w-full border rounded p-2 min-h-[80px]"
+                placeholder="Décrivez le contenu de la vidéo (optionnel)"
+                value={videoDescription}
+                onChange={e => setVideoDescription(e.target.value)}
+              />
+            </div>
           </div>
+
+          {/* Scores Inputs */}
+          {athleteMode === "dual" && (
+            <div className="flex flex-col gap-2 mt-4">
+              <Label>Scores des athlètes</Label>
+              <div className="flex items-center justify-center gap-4 mt-2">
+                <div className="flex flex-col items-center">
+                  <Label htmlFor="score-left" className="block mb-1 text-xs">Gauche</Label>
+                  <Input
+                    id="score-left"
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={scoreLeft}
+                    onChange={e => setScoreLeft(e.target.value)}
+                    className={`w-20 h-12 mx-auto text-center rounded-lg shadow-sm focus:ring-2 focus:ring-primary font-bold transition-colors ${scoreLeft && scoreRight ? (Number(scoreLeft) > Number(scoreRight) ? 'border-green-500 text-green-700' : Number(scoreLeft) < Number(scoreRight) ? 'border-red-500 text-red-700' : 'border-gray-400') : ''}`}
+                  />
+                </div>
+                <span className="font-bold text-lg text-muted-foreground">-</span>
+                <div className="flex flex-col items-center">
+                  <Label htmlFor="score-right" className="block mb-1 text-xs">Droite</Label>
+                  <Input
+                    id="score-right"
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={scoreRight}
+                    onChange={e => setScoreRight(e.target.value)}
+                    className={`w-20 h-12 mx-auto text-center rounded-lg shadow-sm focus:ring-2 focus:ring-primary font-bold transition-colors ${scoreLeft && scoreRight ? (Number(scoreRight) > Number(scoreLeft) ? 'border-green-500 text-green-700' : Number(scoreRight) < Number(scoreLeft) ? 'border-red-500 text-red-700' : 'border-gray-400') : ''}`}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Submit Button */}
           <div className="pt-4">
             <Button
-              onClick={handleSubmit}
+              onClick={async () => {
+                setUploading(true);
+                setUploadError(null);
+                setUploadSuccess(null);
+                
+                // Log form data for debugging
+                console.log('=== FORM DATA BEING SENT ===');
+                console.log('Athlete Mode:', athleteMode);
+                console.log('Video Title:', videoTitle);
+                console.log('Video Description:', videoDescription);
+                console.log('Selected Weapon:', selectedWeapon);
+                console.log('Competition Type:', competitionType);
+                console.log('Video Date:', videoDate);
+                console.log('File:', files[0]?.file);
+                if (athleteMode === "single") {
+                  console.log('Selected Athlete:', selectedAthlete);
+                } else {
+                  console.log('Selected Athlete Left:', selectedAthleteLeft);
+                  console.log('Selected Athlete Right:', selectedAthleteRight);
+                  console.log('Score Left:', scoreLeft);
+                  console.log('Score Right:', scoreRight);
+                }
+                console.log('===========================');
+                
+                // Validation checks
+                console.log('=== VALIDATION CHECKS ===');
+                console.log('Form Valid:', isFormValid);
+                console.log('Has File:', files.length > 0);
+                console.log('Has Title:', !!videoTitle);
+                console.log('Has Competition Type:', !!competitionType);
+                console.log('Has Date:', !!videoDate);
+                if (athleteMode === "single") {
+                  console.log('Has Athlete:', !!selectedAthlete);
+                } else {
+                  console.log('Has Athlete Left:', !!selectedAthleteLeft);
+                  console.log('Has Athlete Right:', !!selectedAthleteRight);
+                  console.log('Has Score Left:', !!scoreLeft);
+                  console.log('Has Score Right:', !!scoreRight);
+                }
+                console.log('========================');
+                
+                try {
+                  let response;
+                  
+                  if (athleteMode === "single") {
+                    if (!selectedAthlete || !selectedAthlete.id) throw new Error("Veuillez sélectionner un athlète.");
+                    response = await uploadVideo({
+                      file: files[0].file,
+                      title: videoTitle,
+                      description: videoDescription,
+                      athleteRight_id: Number(selectedAthlete.id),
+                      athleteLeft_id: Number(selectedAthlete.id),
+                      weapon_type: weapons.find(w => w.display === selectedWeapon)?.value as "foil" | "sabre" | "epee" | undefined,
+                      competition_name: competitionType,
+                      competition_date: videoDate,
+                      is_public: true,
+                    });
+                  } else {
+                    if (!selectedAthleteRight || !selectedAthleteRight.id || !selectedAthleteLeft || !selectedAthleteLeft.id) throw new Error("Veuillez sélectionner les deux athlètes.");
+                    response = await uploadVideo({
+                      file: files[0].file,
+                      title: videoTitle,
+                      description: videoDescription,
+                      athleteRight_id: Number(selectedAthleteRight.id),
+                      athleteLeft_id: Number(selectedAthleteLeft.id),
+                      weapon_type: weapons.find(w => w.display === selectedWeapon)?.value as "foil" | "sabre" | "epee" | undefined,
+                      competition_name: competitionType,
+                      competition_date: videoDate,
+                      score: `${scoreLeft}-${scoreRight}`,
+                      is_public: true,
+                    });
+                  }
+                  setUploadSuccess("Vidéo envoyée avec succès !");
+                  toast({
+                    title: "Succès",
+                    description: "La vidéo a été ajoutée avec succès !",
+                  });
+                  // Reset form
+                  setFiles([]);
+                  setVideoPreview("");
+                  setVideoLoading(false);
+                  setShowPreview(false);
+                  setSelectedAthlete(null);
+                  setSelectedAthleteLeft(null);
+                  setSelectedAthleteRight(null);
+                  setScoreSingle("");
+                  setScoreLeft("");
+                  setScoreRight("");
+                  setSelectedWeapon("");
+                  setCompetitionType("");
+                  setVideoDate("");
+                  setVideoDescription("");
+                  setAthleteError("");
+                  setAthleteLeftError("");
+                  setAthleteRightError("");
+                  // Do not redirect
+                } catch (err: any) {
+                  console.error("=== UPLOAD COMPONENT ERROR ===");
+                  console.error("Error object:", err);
+                  console.error("Error message:", err.message);
+                  console.error("Error stack:", err.stack);
+                  console.error("=============================");
+                  
+                  // Provide more specific error messages
+                  let errorMessage = err.message;
+                  if (err.message.includes('422')) {
+                    errorMessage = "Erreur de validation: Vérifiez que tous les champs requis sont remplis correctement.";
+                  } else if (err.message.includes('401')) {
+                    errorMessage = "Erreur d'authentification: Veuillez vous reconnecter.";
+                  } else if (err.message.includes('403')) {
+                    errorMessage = "Accès refusé: Vous n'avez pas les permissions nécessaires.";
+                  } else if (err.message.includes('500')) {
+                    errorMessage = "Erreur serveur: Veuillez réessayer plus tard.";
+                  }
+                  
+                  setUploadError(errorMessage);
+                  toast({
+                    title: "Erreur",
+                    description: errorMessage,
+                    variant: "destructive",
+                  });
+                } finally {
+                  setUploading(false);
+                }
+              }}
               className="w-full"
               size="lg"
-              disabled={!selectedAthlete || !selectedWeapon || !competitionType || files.length === 0}
+              disabled={!isFormValid || uploading}
             >
-              Télécharger les Vidéos
+              {uploading ? 'Envoi en cours...' : 'Télécharger les Vidéos'}
             </Button>
+            {uploading && (
+              <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+                <Loader2 className="animate-spin h-12 w-12 text-primary" />
+              </div>
+            )}
+            {uploadError && <div className="text-red-500 text-center mt-2">{uploadError}</div>
+            }
+            {uploadSuccess && <div className="text-green-600 text-center mt-2">{uploadSuccess}</div>}
           </div>
         </CardContent>
       </Card>

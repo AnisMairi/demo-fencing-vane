@@ -1,8 +1,7 @@
 "use client"
 
-import type React from "react"
+import React, { useState } from "react"
 
-import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,7 +19,6 @@ interface VideoMetadata {
   weapon: string
   technique: string
   level: string
-  tags: string[]
   isPrivate: boolean
   category: string
   duration?: string
@@ -42,34 +40,90 @@ export function VideoMetadataForm({ initialData, onSave, onCancel, isLoading }: 
     weapon: "",
     technique: "",
     level: "",
-    tags: [],
     isPrivate: false,
     category: "",
     ...initialData,
   })
-  const [currentTag, setCurrentTag] = useState("")
-
-  const addTag = () => {
-    if (currentTag.trim() && !metadata.tags.includes(currentTag.trim())) {
-      setMetadata((prev) => ({
-        ...prev,
-        tags: [...prev.tags, currentTag.trim()],
-      }))
-      setCurrentTag("")
-    }
-  }
-
-  const removeTag = (tagToRemove: string) => {
-    setMetadata((prev) => ({
-      ...prev,
-      tags: prev.tags.filter((tag) => tag !== tagToRemove),
-    }))
-  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     onSave(metadata)
   }
+
+  // Replace COMPETITIONS array with grouped structure for dropdown
+  const COMPETITION_GROUPS = [
+    {
+      level: "Local",
+      competitions: [
+        "Compétition locale",
+        "Match amical",
+        "Challenge club",
+        "Interclubs"
+      ]
+    },
+    {
+      level: "Departmental",
+      competitions: [
+        "Compétition départementale",
+        "Championnat départemental"
+      ]
+    },
+    {
+      level: "Regional",
+      competitions: [
+        "Compétition régionale",
+        "Championnat régional",
+        "Circuit régional",
+        "Tournoi de zone"
+      ]
+    },
+    {
+      level: "National (France)",
+      competitions: [
+        "Circuit national M15",
+        "Circuit national Cadets",
+        "Circuit national Juniors",
+        "Circuit national Seniors",
+        "Circuit national Vétérans",
+        "Championnat de France M15",
+        "Championnat de France Cadets",
+        "Championnat de France Juniors",
+        "Championnat de France Seniors",
+        "Championnat de France Vétérans",
+        "Coupe de France (par équipes)",
+        "Fête des Jeunes",
+        "Sélection nationale"
+      ]
+    },
+    {
+      level: "European (EFC)",
+      competitions: [
+        "Championnat d'Europe Cadets",
+        "Championnat d'Europe Juniors",
+        "Championnat d'Europe Seniors",
+        "Championnat d'Europe Vétérans",
+        "Circuit Européen U14",
+        "Circuit Européen Cadets (U17)",
+        "Coupe d’Europe des clubs",
+        "Jeux Européens"
+      ]
+    },
+    {
+      level: "International (FIE)",
+      competitions: [
+        "Épreuve satellite",
+        "Coupe du Monde Cadets",
+        "Coupe du Monde Juniors",
+        "Coupe du Monde Seniors",
+        "Grand Prix FIE",
+        "Championnat du Monde Cadets",
+        "Championnat du Monde Juniors",
+        "Championnat du Monde Seniors",
+        "Championnat du Monde Vétérans",
+        "Jeux Olympiques"
+      ]
+    }
+  ]
 
   return (
     <Card>
@@ -195,40 +249,30 @@ export function VideoMetadataForm({ initialData, onSave, onCancel, isLoading }: 
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="recordedAt">Recording Date</Label>
-              <Input
-                id="recordedAt"
-                type="date"
-                value={metadata.recordedAt}
-                onChange={(e) => setMetadata((prev) => ({ ...prev, recordedAt: e.target.value }))}
-              />
+              <Label htmlFor="competition">Competition</Label>
+              <Select
+                value={metadata.category}
+                onValueChange={(value) => setMetadata((prev) => ({ ...prev, category: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select competition" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Select competition</SelectItem>
+                  {COMPETITION_GROUPS.map(group => (
+                    <React.Fragment key={group.level}>
+                      {/* Separator with level name */}
+                      <div className="px-2 py-1 text-xs text-muted-foreground font-semibold border-t border-muted-foreground/20 bg-muted/40 cursor-default select-none">
+                        {group.level}
+                      </div>
+                      {group.competitions.map(comp => (
+                        <SelectItem key={comp} value={comp}>{comp}</SelectItem>
+                      ))}
+                    </React.Fragment>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </div>
-
-          {/* Tags */}
-          <div className="space-y-2">
-            <Label>Tags</Label>
-            <div className="flex gap-2">
-              <Input
-                placeholder="Add a tag"
-                value={currentTag}
-                onChange={(e) => setCurrentTag(e.target.value)}
-                onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addTag())}
-              />
-              <Button type="button" onClick={addTag} variant="outline" size="icon">
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-            {metadata.tags.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                {metadata.tags.map((tag) => (
-                  <Badge key={tag} variant="secondary" className="cursor-pointer" onClick={() => removeTag(tag)}>
-                    {tag}
-                    <X className="ml-1 h-3 w-3" />
-                  </Badge>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* Privacy Settings */}
