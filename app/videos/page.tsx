@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button"
 import { Upload } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect, useMemo } from "react"
-import { useVideoApi } from "@/hooks"
 import { Loading } from "@/components/common/loading"
 import {
   Pagination,
@@ -22,7 +21,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 
 export default function VideosPage() {
-  const { getVideos } = useVideoApi()
   const [allVideos, setAllVideos] = useState<any[]>([])
   const [videos, setVideos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)

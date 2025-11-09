@@ -11,10 +11,8 @@ import { Search, Users, Plus, Filter } from "lucide-react"
 import { RotateCcw } from "lucide-react";
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { useAthleteApi } from "@/hooks/use-athlete-api"
 
 export default function AthletesPage() {
-  const { getAthletes } = useAthleteApi();
   const [athletes, setAthletes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

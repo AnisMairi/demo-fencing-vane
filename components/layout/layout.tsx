@@ -4,6 +4,7 @@ import type React from "react"
 
 import { Header } from "./header"
 import { Sidebar } from "./sidebar"
+import { Footer } from "./footer"
 
 interface LayoutProps {
   children: React.ReactNode
@@ -17,7 +18,10 @@ export function Layout({ children }: LayoutProps) {
         <aside className="relative w-64 border-r bg-background overflow-y-auto h-full min-h-0">
           <Sidebar />
         </aside>
-        <main className="flex-1 p-6 px-6 overflow-y-auto h-full min-h-0 min-w-0">{children}</main>
+        <main className="flex-1 p-6 px-6 overflow-y-auto h-full min-h-0 min-w-0 flex flex-col">
+          <div className="flex-1">{children}</div>
+          <Footer />
+        </main>
       </div>
     </div>
   )

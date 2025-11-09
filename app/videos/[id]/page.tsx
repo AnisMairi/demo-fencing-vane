@@ -1,52 +1,15 @@
 "use client"
-import { useState, use, useRef, useEffect, useCallback } from "react"
+import { useState, use, useEffect, useCallback } from "react"
 import { ProtectedRoute } from "@/components/auth/protected-route"
 import { Layout } from "@/components/layout/layout"
-import { EnhancedVideoPlayer } from "@/components/video/enhanced-video-player-with-timeline"
-import { VideoComments } from "@/components/video/video-comments-with-timeline"
-import { useVideoApi } from "@/hooks"
-import { useCommentApi } from "@/hooks"
+import { VideoAnalysisGrid } from "@/components/video/video-analysis-grid"
 import { Loading } from "@/components/common/loading"
-
-interface Comment {
-  id: string
-  author: {
-    name: string
-    avatar: string
-    role: "local_contact" | "coach" | "administrator"
-  }
-  content: string
-  timestamp: string
-  likes: number
-  replies: Comment[]
-}
-
-interface TimeStamp {
-  id: string
-  time: string
-  displayTime: string
-}
-
-interface VideoTag {
-  id: string
-  text: string
-  displayText: string
-}
 
 export default function VideoViewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const videoContainerRef = useRef<HTMLDivElement>(null)
-  const [currentTime, setCurrentTime] = useState(0)
-  const [commentInput, setCommentInput] = useState("")
-  const [pendingTags, setPendingTags] = useState<string[]>([])
   const [videoData, setVideoData] = useState<any>(null)
-  const [comments, setComments] = useState<Comment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  const { getVideo } = useVideoApi()
-  const { getVideoComments, createComment } = useCommentApi()
 
   // Helper function to format relative time
   const formatRelativeTime = useCallback((dateString: string): string => {
@@ -69,23 +32,6 @@ export default function VideoViewPage({ params }: { params: Promise<{ id: string
     const minutes = Math.floor(seconds / 60)
     const remainingSeconds = Math.floor(seconds % 60)
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`
-  }, [])
-
-  // Helper function to get athlete display name
-  const getAthleteDisplayName = useCallback((video: any): string => {
-    if (video.athleteRight_name && video.athleteLeft_name) {
-      if (video.athleteRight_id === video.athleteLeft_id) {
-        return video.athleteRight_name
-      } else {
-        return `${video.athleteRight_name} vs ${video.athleteLeft_name}`
-      }
-    } else if (video.athleteRight_name) {
-      return video.athleteRight_name
-    } else if (video.athleteLeft_name) {
-      return video.athleteLeft_name
-    } else {
-      return 'Athlète inconnu'
-    }
   }, [])
 
   // Load video data and comments - Mode démo
@@ -131,9 +77,6 @@ export default function VideoViewPage({ params }: { params: Promise<{ id: string
         }
         
         setVideoData(transformedVideo)
-        
-        // Pas de commentaires en démo
-        setComments([])
 
       } catch (err) {
         console.error('Error loading video data:', err)
@@ -157,8 +100,6 @@ export default function VideoViewPage({ params }: { params: Promise<{ id: string
   // Transform video data for the player
   const getVideoMetadata = useCallback(() => {
     if (!videoData) return null
-
-
 
     return {
       id: videoData.id.toString(),
@@ -196,84 +137,12 @@ export default function VideoViewPage({ params }: { params: Promise<{ id: string
     }
   }, [videoData, formatRelativeTime, formatDuration])
 
-  const handleAddGlobalComment = useCallback(async (comment: { content: string }) => {
-    try {
-      // Create comment via API
-      const newComment = await createComment(parseInt(id), { content: comment.content })
-      
-      // Add to local state
-      const transformedComment: Comment = {
-        id: newComment.id.toString(),
-        author: {
-          name: newComment.author_name || 'Vous',
-          avatar: "https://placehold.co/64x64?text=" + (newComment.author_name?.charAt(0) || 'Y'),
-          role: "local_contact" as const,
-        },
-        content: newComment.content,
-        timestamp: "À l'instant",
-        likes: 0,
-        replies: [],
-      }
-      
-      setComments(prev => [transformedComment, ...prev])
-    } catch (err) {
-      console.error('Error creating comment:', err)
-      setError("Erreur lors de l'ajout du commentaire")
-    }
-  }, [id, createComment])
-
-  const handleSeekToTime = useCallback((time: number) => {
-    console.log("Seeking to time:", time)
-    if (videoRef.current) {
-      videoRef.current.currentTime = time
-    }
-    setCurrentTime(time)
-  }, [])
-
-  const handleAddTimeStamp = useCallback((timeStamp: string) => {
-    setCommentInput(prev => prev + timeStamp + " ")
-  }, [])
-
-  const handleAddTag = useCallback((tag: string) => {
-    // Extract the tag text from /tag{text} format
-    const tagMatch = tag.match(/\/tag\{([^}]+)\}/)
-    if (tagMatch) {
-      const tagText = tagMatch[1]
-      setPendingTags(prev => [...prev, tagText])
-    }
-  }, [])
-
-  const handleSeekToTimeStamp = useCallback((timeString: string) => {
-    // Parse time string like "1:23" to seconds
-    const [minutes, seconds] = timeString.split(':').map(Number)
-    const totalSeconds = minutes * 60 + seconds
-    handleSeekToTime(totalSeconds)
-    
-    // Scroll to video and focus on it
-    if (videoContainerRef.current) {
-      videoContainerRef.current.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'center' 
-      })
-      
-      // Add a subtle highlight effect
-      videoContainerRef.current.classList.add('ring-2', 'ring-blue-500', 'ring-opacity-50')
-      setTimeout(() => {
-        videoContainerRef.current?.classList.remove('ring-2', 'ring-blue-500', 'ring-opacity-50')
-      }, 2000)
-    }
-    
-    // Show a brief notification
-    console.log(`🎬 Vidéo positionnée à ${timeString}`)
-  }, [handleSeekToTime])
-
-  const handleReportComment = useCallback((commentId: string) => {
-    console.log("Reporting comment:", commentId)
-  }, [])
-
-  const handleDeleteComment = useCallback((commentId: string) => {
-    console.log("Deleting comment:", commentId)
-  }, [])
+  const handleSaveAnalysis = useCallback((data: any) => {
+    // En mode démo, sauvegarder dans localStorage
+    const storageKey = `video_analysis_${id}`
+    localStorage.setItem(storageKey, JSON.stringify(data))
+    console.log("Analysis saved:", data)
+  }, [id])
 
   if (loading) {
     return (
@@ -308,7 +177,7 @@ export default function VideoViewPage({ params }: { params: Promise<{ id: string
     <ProtectedRoute>
       <Layout>
         <div className="space-y-6">
-          <div ref={videoContainerRef} className="transition-all duration-500 ease-out">
+          <div className="transition-all duration-500 ease-out">
             {/* Message de démo à la place de la vidéo */}
             <div className="bg-muted/50 border border-border rounded-lg p-8 text-center space-y-4">
               <div className="text-4xl mb-4">🎬</div>
@@ -333,19 +202,7 @@ export default function VideoViewPage({ params }: { params: Promise<{ id: string
             </div>
           </div>
 
-          <VideoComments
-            videoId={id}
-            comments={comments}
-            onAddComment={handleAddGlobalComment}
-            onReportComment={handleReportComment}
-            onDeleteComment={handleDeleteComment}
-            commentInput={commentInput}
-            onCommentInputChange={setCommentInput}
-            onSeekToTimeStamp={handleSeekToTimeStamp}
-            onAddTag={handleAddTag}
-            pendingTags={pendingTags}
-            onPendingTagsChange={setPendingTags}
-          />
+          <VideoAnalysisGrid videoId={id} onSave={handleSaveAnalysis} />
         </div>
       </Layout>
     </ProtectedRoute>

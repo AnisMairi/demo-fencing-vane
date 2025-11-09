@@ -4,7 +4,6 @@ import { DashboardStats } from "@/components/dashboard/dashboard-stats"
 import { RoleBasedContent } from "@/components/dashboard/role-based-content"
 import { RecentVideosTable } from "@/components/dashboard/recent-videos-table"
 import { TopAthletes } from "@/components/dashboard/top-athletes"
-import Link from "next/link"
 
 export default function DashboardPage() {
   return (
@@ -22,21 +21,6 @@ export default function DashboardPage() {
             <RecentVideosTable />
             <TopAthletes />
           </div>
-
-          {/* Footer */}
-          <footer className="text-center text-[10px] text-muted-foreground pt-4 mt-auto">
-            <p>
-              © {new Date().getFullYear()} Fédération Française d'Escrime — Développé par{" "}
-              <Link
-                href="https://vane-solutions.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-foreground hover:underline underline-offset-4"
-              >
-                Vane Solutions
-              </Link>
-            </p>
-          </footer>
         </div>
       </Layout>
     </ProtectedRoute>
