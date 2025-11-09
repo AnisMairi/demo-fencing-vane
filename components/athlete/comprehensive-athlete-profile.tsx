@@ -101,6 +101,7 @@ export function ComprehensiveAthleteProfile({ athleteId }: ComprehensiveAthleteP
   const [athlete, setAthlete] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [evaluations, setEvaluations] = useState<any[]>([]);
 
   useEffect(() => {
     // Mode démo : utiliser les données de démo au lieu de l'API
@@ -158,6 +159,11 @@ export function ComprehensiveAthleteProfile({ athleteId }: ComprehensiveAthleteP
         };
         
         setAthlete(transformedAthlete);
+        
+        // Charger les évaluations de démo pour cet athlète
+        const { getEvaluationsByAthleteId } = await import("@/lib/demo-evaluations");
+        const athleteEvaluations = getEvaluationsByAthleteId(athleteId);
+        setEvaluations(athleteEvaluations);
       } catch (err) {
         console.error('Error loading athlete:', err);
         setError("Échec du chargement du profil de l'athlète");
@@ -633,70 +639,161 @@ export function ComprehensiveAthleteProfile({ athleteId }: ComprehensiveAthleteP
             </TabsContent>
 
             <TabsContent value="evaluations" className="space-y-6">
-              <div className="grid gap-6 md:grid-cols-2">
+              {evaluations.length === 0 ? (
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Détail des Évaluations</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {Object.entries(mappedAthlete.evaluations)
-                      .filter(([key]) => !["lastEvaluated", "evaluatedBy", "overall"].includes(key))
-                      .map(([key, value]) => (
-                        <div key={key} className="space-y-2">
-                          <div className="flex justify-between">
-                            <span className="capitalize">
-                              {key === "posture"
-                                ? "Posture"
-                                : key === "speed"
-                                  ? "Vitesse"
-                                  : key === "positioning"
-                                    ? "Positionnement"
-                                    : key === "technique"
-                                      ? "Technique"
-                                      : "Tactique"}
-                            </span>
-                            <span className="font-medium">{(value as number) / 10}/10</span>
-                          </div>
-                          <Progress value={(value as number) * 10} className="h-2" />
-                        </div>
-                      ))}
+                  <CardContent className="p-8 text-center">
+                    <p className="text-muted-foreground">Aucune évaluation disponible pour cet athlète.</p>
+                    <Button asChild className="mt-4">
+                      <Link href={`/athletes/${athleteId}/evaluate`}>
+                        <Star className="h-4 w-4 mr-2" />
+                        Créer une évaluation
+                      </Link>
+                    </Button>
                   </CardContent>
                 </Card>
+              ) : (
+                <>
+                  {/* Dernière évaluation - Détails */}
+                  {evaluations[0] && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Dernière Évaluation</CardTitle>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(evaluations[0].createdAt).toLocaleDateString("fr-FR", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          })}
+                        </p>
+                      </CardHeader>
+                      <CardContent className="space-y-6">
+                        {/* Score global */}
+                        <div className="text-center p-4 bg-muted/30 rounded-lg">
+                          <div className="text-4xl font-bold text-primary mb-2">
+                            {evaluations[0].globalScore.toFixed(1)}%
+                          </div>
+                          <div className="text-lg font-semibold mb-1">{evaluations[0].scoreLabel}</div>
+                          <div className="text-sm text-muted-foreground">
+                            Potentiel: {evaluations[0].potential}
+                          </div>
+                        </div>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Historique des Évaluations</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="p-3 bg-muted/20 rounded-lg">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <div className="font-medium">Évaluation Complète</div>
-                            <div className="text-sm text-muted-foreground">15 janvier 2024</div>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-bold text-primary">86/100</div>
-                            <div className="text-xs text-muted-foreground">Master Laurent</div>
+                        {/* Domaines d'évaluation */}
+                        <div className="space-y-4">
+                          <h3 className="font-semibold">Domaines évalués</h3>
+                          <div className="grid gap-4 md:grid-cols-2">
+                            {[
+                              { key: "physique", label: "Qualités physiques spécifiques" },
+                              { key: "technique", label: "Qualités techniques spécifiques" },
+                              { key: "garde", label: "Posture et position de garde" },
+                              { key: "motivation", label: "Aspect motivationnel (détermination)" },
+                              { key: "main", label: "Qualités techniques de main" },
+                              { key: "mobilite", label: "Mobilité spécifique" },
+                              { key: "cognitif", label: "Capacités cognitives en escrime" },
+                            ].map(({ key, label }) => {
+                              const value = evaluations[0][key as keyof typeof evaluations[0]] as number;
+                              const scaleLabels = [
+                                "À développer",
+                                "En cours de développement",
+                                "En voie de maîtrise",
+                                "Maîtrise (point fort)",
+                              ];
+                              return (
+                                <div key={key} className="space-y-2">
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-sm font-medium">{label}</span>
+                                    <Badge variant="outline">{value}/4</Badge>
+                                  </div>
+                                  <Progress value={(value / 4) * 100} className="h-2" />
+                                  <p className="text-xs text-muted-foreground">
+                                    {scaleLabels[value - 1]}
+                                  </p>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
-                      </div>
-                      <div className="p-3 bg-muted/20 rounded-lg">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <div className="font-medium">Évaluation Technique</div>
-                            <div className="text-sm text-muted-foreground">20 décembre 2023</div>
+
+                        {/* Bilan */}
+                        {evaluations[0].bilan && (
+                          <div className="space-y-2">
+                            <h3 className="font-semibold">Bilan individuel général</h3>
+                            <div className="p-4 bg-muted/20 rounded-lg text-sm whitespace-pre-wrap">
+                              {evaluations[0].bilan}
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <div className="font-bold text-primary">82/100</div>
-                            <div className="text-xs text-muted-foreground">Coach Martin</div>
+                        )}
+
+                        {/* Métadonnées */}
+                        <div className="pt-4 border-t space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Évalué par:</span>
+                            <span className="font-medium">{evaluations[0].evaluatorName}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Rôle:</span>
+                            <span className="font-medium capitalize">{evaluations[0].evaluatorRole}</span>
                           </div>
                         </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Historique des évaluations */}
+                  {evaluations.length > 1 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Historique des Évaluations</CardTitle>
+                        <p className="text-sm text-muted-foreground">
+                          {evaluations.length} évaluation{evaluations.length > 1 ? "s" : ""} au total
+                        </p>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {evaluations.map((evalItem) => (
+                            <div
+                              key={evalItem.id}
+                              className="p-4 bg-muted/20 rounded-lg border border-border/50 hover:bg-muted/30 transition-colors"
+                            >
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <div className="font-medium mb-1">
+                                    Évaluation du{" "}
+                                    {new Date(evalItem.createdAt).toLocaleDateString("fr-FR", {
+                                      day: "numeric",
+                                      month: "long",
+                                      year: "numeric",
+                                    })}
+                                  </div>
+                                  <div className="text-sm text-muted-foreground mb-2">
+                                    Potentiel: {evalItem.potential}
+                                  </div>
+                                  {evalItem.bilan && (
+                                    <p className="text-sm text-muted-foreground line-clamp-2 mt-2">
+                                      {evalItem.bilan}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="text-right ml-4">
+                                  <div className="font-bold text-primary text-xl mb-1">
+                                    {evalItem.globalScore.toFixed(1)}%
+                                  </div>
+                                  <Badge variant="secondary" className="mb-2">
+                                    {evalItem.scoreLabel}
+                                  </Badge>
+                                  <div className="text-xs text-muted-foreground">
+                                    {evalItem.evaluatorName}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
+              )}
             </TabsContent>
 
             <TabsContent value="progression" className="space-y-6">

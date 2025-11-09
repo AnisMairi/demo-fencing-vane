@@ -62,12 +62,81 @@ export default function EvaluationsPage() {
     const loadData = async () => {
       try {
         setLoading(true)
-        // Get current user details
-        const userData = await getMe()
-        setCurrentUser(userData)
-        // Get all evaluations and filter by current evaluator
-        const response = await getAllEvaluations({ evaluator_id: userData.id })
-        setEvaluations(response.evaluations || [])
+        setError(null)
+        
+        // Charger les évaluations de l'API (anciennes)
+        let apiEvaluations: Evaluation[] = []
+        try {
+          const userData = await getMe()
+          setCurrentUser(userData)
+          const response = await getAllEvaluations({ evaluator_id: userData.id })
+          apiEvaluations = response.evaluations || []
+        } catch (apiErr) {
+          console.warn("API evaluations not available (demo mode):", apiErr)
+          // En mode démo, on continue sans les évaluations API
+        }
+        
+        // Initialiser les évaluations de démo si nécessaire
+        try {
+          const { seedDemoEvaluations } = await import("@/lib/demo-evaluations-seed")
+          await seedDemoEvaluations()
+        } catch (seedErr) {
+          console.warn("Could not seed demo evaluations:", seedErr)
+        }
+        
+        // Charger les évaluations de démo depuis localStorage (nouvelles)
+        let demoEvaluations: Evaluation[] = []
+        try {
+          const { getEvaluations } = await import("@/lib/demo-evaluations")
+          const { DEMO_ATHLETES } = await import("@/lib/demo-athletes")
+          
+          const allDemoEvaluations = getEvaluations()
+          
+          // Transformer les évaluations de démo au format Evaluation
+          demoEvaluations = allDemoEvaluations.map((demoEval) => {
+            const athlete = DEMO_ATHLETES.find(a => a.id === demoEval.athleteId)
+            const athleteName = athlete 
+              ? `${athlete.first_name} ${athlete.last_name}`
+              : `${demoEval.firstName} ${demoEval.lastName}`
+            
+            // Convertir le score global (0-100%) en score sur 10
+            const scoreOn10 = (demoEval.globalScore / 100) * 10
+            
+            return {
+              id: parseInt(demoEval.id.replace(/\D/g, '')) || Date.now(), // Convertir l'ID en nombre
+              athlete_id: parseInt(demoEval.athleteId) || 0,
+              athlete_name: athleteName,
+              video_id: 0, // Pas de vidéo associée pour les nouvelles évaluations
+              video_title: "Évaluation générale",
+              evaluator_id: 0,
+              evaluator_name: demoEval.evaluatorName,
+              technique_score: (demoEval.technique / 4) * 10, // Convertir Likert 4 en score sur 10
+              tactics_score: (demoEval.cognitif / 4) * 10, // Utiliser cognitif comme tactique
+              physical_score: (demoEval.physique / 4) * 10,
+              mental_score: (demoEval.motivation / 4) * 10,
+              overall_score: scoreOn10,
+              comments: demoEval.bilan || "",
+              specific_feedback: demoEval.bilan || "",
+              strengths: "",
+              areas_for_improvement: "",
+              recommendations: "",
+              created_at: demoEval.createdAt,
+              updated_at: demoEval.createdAt,
+            } as Evaluation
+          })
+        } catch (demoErr) {
+          console.warn("Demo evaluations not available:", demoErr)
+        }
+        
+        // Combiner les deux listes (API + démo)
+        const combinedEvaluations = [...apiEvaluations, ...demoEvaluations]
+        
+        // Trier par date (plus récentes en premier)
+        combinedEvaluations.sort((a, b) => 
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        )
+        
+        setEvaluations(combinedEvaluations)
       } catch (err) {
         console.error("Error loading evaluations:", err)
         setError("Erreur lors du chargement des évaluations")
@@ -119,12 +188,36 @@ export default function EvaluationsPage() {
     }
 
     try {
-      await deleteEvaluation(evaluationId)
-      setEvaluations(evaluations.filter(e => e.id !== evaluationId))
-      toast({
-        title: "Évaluation supprimée",
-        description: "L'évaluation a été supprimée avec succès",
-      })
+      // Vérifier si c'est une évaluation de démo (ID très grand = probablement généré depuis eval_)
+      const evaluation = evaluations.find(e => e.id === evaluationId)
+      const isDemoEvaluation = evaluation && evaluation.video_title === "Évaluation générale"
+      
+      if (isDemoEvaluation) {
+        // Supprimer depuis localStorage - on doit trouver l'ID original
+        const { getEvaluations, deleteEvaluation: deleteDemoEvaluation } = await import("@/lib/demo-evaluations")
+        const allDemoEvaluations = getEvaluations()
+        const demoEvalToDelete = allDemoEvaluations.find(e => {
+          const numericId = parseInt(e.id.replace(/\D/g, ''))
+          return numericId === evaluationId || e.id.includes(String(evaluationId))
+        })
+        
+        if (demoEvalToDelete) {
+          deleteDemoEvaluation(demoEvalToDelete.id)
+        }
+        setEvaluations(evaluations.filter(e => e.id !== evaluationId))
+        toast({
+          title: "Évaluation supprimée",
+          description: "L'évaluation a été supprimée avec succès",
+        })
+      } else {
+        // Supprimer via l'API
+        await deleteEvaluation(evaluationId)
+        setEvaluations(evaluations.filter(e => e.id !== evaluationId))
+        toast({
+          title: "Évaluation supprimée",
+          description: "L'évaluation a été supprimée avec succès",
+        })
+      }
     } catch (err) {
       toast({
         title: "Erreur",
@@ -230,7 +323,7 @@ export default function EvaluationsPage() {
   const calculateAverageScore = () => {
     if (evaluations.length === 0) return 0
     const total = evaluations.reduce((sum, evaluation) => sum + (evaluation.overall_score || 0), 0)
-    return Math.round(total / evaluations.length)
+    return total / evaluations.length
   }
 
   const getTopScores = () => {
@@ -286,7 +379,7 @@ export default function EvaluationsPage() {
                 <Target className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{calculateAverageScore()}</div>
+                <div className="text-2xl font-bold">{calculateAverageScore().toFixed(1)}</div>
                 <p className="text-xs text-muted-foreground">
                   sur 10 points
                 </p>
@@ -501,7 +594,7 @@ export default function EvaluationsPage() {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <span className={`text-lg font-bold ${getScoreColor(evaluation.overall_score || 0)}`}>
-                              {evaluation.overall_score || "N/A"}
+                              {evaluation.overall_score ? evaluation.overall_score.toFixed(1) : "N/A"}
                             </span>
                             <Badge variant={evaluation.overall_score && evaluation.overall_score >= 8 ? "default" : "secondary"}>
                               {evaluation.overall_score ? getScoreLabel(evaluation.overall_score) : "N/A"}
@@ -581,7 +674,7 @@ export default function EvaluationsPage() {
                         <Badge variant="outline">#{index + 1}</Badge>
                       </div>
                       <div className="text-2xl font-bold text-green-600">
-                        {evaluation.overall_score}/10
+                        {evaluation.overall_score.toFixed(1)}/10
                       </div>
                       <p className="text-sm text-muted-foreground">
                         {evaluation.video_title}
