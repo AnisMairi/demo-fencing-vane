@@ -41,8 +41,8 @@ export default function LoginPage() {
 
           <Card className="w-full">
             <CardHeader className="space-y-1">
-              <CardTitle className="text-2xl text-center">Déjà connecté</CardTitle>
-              <CardDescription className="text-center">
+              <CardTitle className="text-xl sm:text-2xl text-center">Déjà connecté</CardTitle>
+              <CardDescription className="text-center text-sm sm:text-base">
                 Vous êtes déjà connecté en tant que {user.name}
               </CardDescription>
             </CardHeader>

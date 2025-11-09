@@ -9,11 +9,13 @@ export default function DashboardPage() {
   return (
     <ProtectedRoute>
       <Layout>
-        <div className="flex flex-col min-h-full pb-6">
-          <div className="space-y-6 flex-1">
+        <div className="flex flex-col min-h-full pb-4 sm:pb-6">
+          <div className="space-y-4 sm:space-y-6 flex-1">
             <div>
-              <h1 className="text-3xl font-bold">Tableau de bord</h1>
-              <p className="text-muted-foreground">Bienvenue sur votre plateforme de détection de jeunes talents en escrime</p>
+              <h1 className="text-2xl sm:text-3xl font-bold">Tableau de bord</h1>
+              <p className="text-sm sm:text-base text-muted-foreground mt-1 sm:mt-2">
+                Bienvenue sur votre plateforme de détection de jeunes talents en escrime
+              </p>
             </div>
 
             <DashboardStats />

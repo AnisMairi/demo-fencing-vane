@@ -10,9 +10,11 @@ import { Home, Video, Users, MessageSquare, Shield, BarChart3, Upload, Bell, Sta
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
-interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {}
+interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
+  onNavigate?: () => void
+}
 
-export function Sidebar({ className }: SidebarProps) {
+export function Sidebar({ className, onNavigate }: SidebarProps) {
   const { user } = useAuth()
   const pathname = usePathname()
 
@@ -72,47 +74,52 @@ export function Sidebar({ className }: SidebarProps) {
 
   const filteredNavigation = navigation.filter((item) => item.roles.includes(user?.role || "local_contact"))
 
+  const handleLinkClick = () => {
+    if (onNavigate) {
+      onNavigate()
+    }
+  }
+
   return (
-    <div className={cn("w-full", className)}>
-      {/* Remove Sidebar Toggle Button */}
+    <div className={cn("w-full h-full", className)}>
       <div className="space-y-4 py-4">
-          <div className="px-3 py-2">
-            {/* Main Action Button for Upload Video */}
-            {user && (user.role === "local_contact" || user.role === "coach") ? (
-              <Link href="/videos/upload">
-                <Button
-                  className="w-full mt-4 mb-4 bg-primary text-primary-foreground font-semibold shadow-md hover:bg-primary/90 flex items-center gap-2 text-base py-3"
-                  size="lg"
-                >
-                  <Upload className="h-5 w-5" />
-                  Upload Video
-                </Button>
-              </Link>
-            ) : (
-              <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">Navigation</h2>
-            )}
-            <div className="space-y-1">
-              {filteredNavigation.map((item) => (
-                <Button
-                  key={item.name}
-                  variant={pathname === item.href ? "secondary" : "ghost"}
-                  className="w-full justify-start"
-                  asChild
-                >
-                  <Link href={item.href}>
-                    <item.icon className="mr-2 h-4 w-4" />
-                    {item.name}
-                    {item.badge && (
-                      <Badge variant="destructive" className="ml-auto text-xs">
-                        {item.badge}
-                      </Badge>
-                    )}
-                  </Link>
-                </Button>
-              ))}
-            </div>
+        <div className="px-3 py-2">
+          {/* Main Action Button for Upload Video */}
+          {user && (user.role === "local_contact" || user.role === "coach") ? (
+            <Link href="/videos/upload" onClick={handleLinkClick}>
+              <Button
+                className="w-full mt-4 mb-4 bg-primary text-primary-foreground font-semibold shadow-md hover:bg-primary/90 flex items-center gap-2 text-sm sm:text-base py-2 sm:py-3"
+                size="lg"
+              >
+                <Upload className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="text-xs sm:text-base">Upload Video</span>
+              </Button>
+            </Link>
+          ) : (
+            <h2 className="mb-2 px-4 text-base sm:text-lg font-semibold tracking-tight">Navigation</h2>
+          )}
+          <div className="space-y-1">
+            {filteredNavigation.map((item) => (
+              <Button
+                key={item.name}
+                variant={pathname === item.href ? "secondary" : "ghost"}
+                className="w-full justify-start text-sm sm:text-base"
+                asChild
+              >
+                <Link href={item.href} onClick={handleLinkClick}>
+                  <item.icon className="mr-2 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                  <span className="truncate">{item.name}</span>
+                  {item.badge && (
+                    <Badge variant="destructive" className="ml-auto text-xs flex-shrink-0">
+                      {item.badge}
+                    </Badge>
+                  )}
+                </Link>
+              </Button>
+            ))}
           </div>
         </div>
+      </div>
     </div>
   )
 }

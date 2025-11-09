@@ -44,8 +44,8 @@ export function LoginForm() {
   return (
     <Card className="w-full">
       <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl text-center">Connexion</CardTitle>
-        <CardDescription className="text-center">
+        <CardTitle className="text-xl sm:text-2xl text-center">Connexion</CardTitle>
+        <CardDescription className="text-center text-sm sm:text-base">
           Mode démo — sélectionnez un compte ci-dessous
         </CardDescription>
       </CardHeader>
