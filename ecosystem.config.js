@@ -2,18 +2,18 @@
 module.exports = {
   apps: [
     {
-      name: 'escrime-avenir',
+      name: 'demo-fencing-vane',
       script: 'npm',
       args: 'start',
-      cwd: '/var/www/escrime-avenir',
+      cwd: '/var/www/demo-fencing-vane',
       instances: 1,
       exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',
         PORT: 3000,
       },
-      error_file: '/var/log/pm2/escrime-avenir-error.log',
-      out_file: '/var/log/pm2/escrime-avenir-out.log',
+      error_file: '/var/log/pm2/demo-fencing-vane-error.log',
+      out_file: '/var/log/pm2/demo-fencing-vane-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       merge_logs: true,
       autorestart: true,
